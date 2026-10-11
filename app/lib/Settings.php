@@ -7,17 +7,17 @@ final class Settings
     private static bool $loaded = false;
 
     public const CATALOG = [
-        'app_name' => ['type' => 'string', 'label' => 'Application name', 'description' => 'Name shown in the interface'],
-        'business_name' => ['type' => 'string', 'label' => 'Business name', 'description' => 'Name shown on invoices and agreements'],
-        'business_address' => ['type' => 'string', 'label' => 'Business address', 'description' => 'Street address of the rental office'],
-        'business_phone' => ['type' => 'string', 'label' => 'Business phone', 'description' => 'Public contact telephone number'],
-        'business_email' => ['type' => 'string', 'label' => 'Business email', 'description' => 'Public contact email address'],
-        'business_country' => ['type' => 'string', 'label' => 'Business country', 'description' => 'Business operating country'],
-        'default_currency' => ['type' => 'string', 'label' => 'Default currency', 'description' => 'ISO currency code, for example RWF'],
-        'timezone' => ['type' => 'string', 'label' => 'Time zone', 'description' => 'Business timezone identifier'],
-        'reservation_confirmation_required' => ['type' => 'boolean', 'label' => 'Reservation confirmation required', 'description' => 'Reservations require staff confirmation'],
-        'default_deposit_amount' => ['type' => 'number', 'label' => 'Default security deposit', 'description' => 'Default deposit amount in the business currency'],
-        'session_idle_timeout' => ['type' => 'number', 'label' => 'Session idle timeout (minutes)', 'description' => 'Minutes of inactivity before staff sessions expire'],
+        'app_name' => ['type' => 'string', 'group' => 'Application', 'label' => 'Application name', 'description' => 'Name shown in the interface'],
+        'business_name' => ['type' => 'string', 'group' => 'Business', 'label' => 'Business name', 'description' => 'Name shown on invoices and agreements'],
+        'business_address' => ['type' => 'string', 'group' => 'Business', 'label' => 'Business address', 'description' => 'Street address of the rental office'],
+        'business_phone' => ['type' => 'string', 'group' => 'Business', 'label' => 'Business phone', 'description' => 'Public contact telephone number'],
+        'business_email' => ['type' => 'string', 'group' => 'Business', 'label' => 'Business email', 'description' => 'Public contact email address'],
+        'business_country' => ['type' => 'string', 'group' => 'Business', 'label' => 'Business country', 'description' => 'Business operating country'],
+        'default_currency' => ['type' => 'string', 'group' => 'Regional', 'label' => 'Default currency', 'description' => 'ISO currency code used across the system', 'options' => ['RWF' => 'RWF — Rwandan Franc', 'USD' => 'USD — US Dollar', 'EUR' => 'EUR — Euro', 'KES' => 'KES — Kenyan Shilling']],
+        'timezone' => ['type' => 'string', 'group' => 'Regional', 'label' => 'Time zone', 'description' => 'Business timezone for timestamps', 'options' => ['Africa/Kigali' => 'Africa/Kigali', 'Africa/Nairobi' => 'Africa/Nairobi', 'Africa/Lagos' => 'Africa/Lagos', 'UTC' => 'UTC']],
+        'reservation_confirmation_required' => ['type' => 'boolean', 'group' => 'Operations', 'label' => 'Reservation confirmation required', 'description' => 'Reservations require staff confirmation before they become active'],
+        'default_deposit_amount' => ['type' => 'number', 'group' => 'Operations', 'label' => 'Default security deposit', 'description' => 'Default deposit amount in the business currency'],
+        'session_idle_timeout' => ['type' => 'number', 'group' => 'Security', 'label' => 'Session idle timeout (minutes)', 'description' => 'Minutes of inactivity before staff sessions expire'],
     ];
 
     public static function ensureDefaults(): void

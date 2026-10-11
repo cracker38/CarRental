@@ -58,9 +58,12 @@ require BASE_PATH . '/includes/header.php';
 ?>
 <div class="page-head">
     <div>
+        <div class="crumb"><a href="<?= e(base_url('admin/users.php')) ?>">Users</a> / <?= $existing ? 'Edit' : 'New' ?></div>
         <h1 class="h3 mb-1"><?= e($pageTitle) ?></h1>
         <?php if ($existing): ?>
-            <p class="text-secondary mb-0">Created <?= e($existing['created_at']) ?> &middot; Updated <?= e($existing['updated_at']) ?></p>
+            <p class="text-secondary mb-0">Created <?= e(format_datetime($existing['created_at'])) ?> · Updated <?= e(format_datetime($existing['updated_at'])) ?></p>
+        <?php else: ?>
+            <p class="text-secondary mb-0">Create a staff account and assign a least-privilege role.</p>
         <?php endif; ?>
     </div>
     <a class="btn btn-outline-secondary" href="<?= e(base_url('admin/users.php')) ?>">Back</a>
@@ -68,7 +71,7 @@ require BASE_PATH . '/includes/header.php';
 
 <div class="row g-3">
     <div class="col-lg-8">
-        <div class="card stat-card">
+        <div class="card crms-card">
             <div class="card-body">
                 <?php if (!empty($errors['form'])): ?><div class="alert alert-danger"><?= e($errors['form']) ?></div><?php endif; ?>
                 <form method="post">
@@ -120,8 +123,13 @@ require BASE_PATH . '/includes/header.php';
                         <?php if (!$existing): ?>
                             <div class="col-12">
                                 <label class="form-label">Temporary password</label>
-                                <input class="form-control <?= isset($errors['password']) ? 'is-invalid' : '' ?>" type="password" name="password" required>
-                                <?php if (isset($errors['password'])): ?><div class="invalid-feedback"><?= e($errors['password']) ?></div><?php endif; ?>
+                                <div class="input-icon">
+                                    <i class="bi bi-lock"></i>
+                                    <input class="form-control <?= isset($errors['password']) ? 'is-invalid' : '' ?>" type="password" id="newUserPassword" name="password" required>
+                                    <button class="password-toggle" type="button" data-password-toggle="newUserPassword" aria-label="Show password"><i class="bi bi-eye"></i></button>
+                                </div>
+                                <div class="form-text">At least 10 characters, with uppercase, lowercase, and a number.</div>
+                                <?php if (isset($errors['password'])): ?><div class="invalid-feedback d-block"><?= e($errors['password']) ?></div><?php endif; ?>
                             </div>
                         <?php endif; ?>
                         <div class="col-12">
@@ -140,7 +148,7 @@ require BASE_PATH . '/includes/header.php';
     </div>
     <?php if ($existing): ?>
         <div class="col-lg-4">
-            <div class="card stat-card">
+            <div class="card crms-card">
                 <div class="card-body">
                     <h2 class="h5">Reset password</h2>
                     <p class="text-secondary">Set a new temporary password. The plaintext value is not stored or logged.</p>

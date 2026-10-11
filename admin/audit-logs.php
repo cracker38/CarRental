@@ -58,12 +58,13 @@ require BASE_PATH . '/includes/header.php';
 ?>
 <div class="page-head">
     <div>
+        <div class="crumb">Administration</div>
         <h1 class="h3 mb-1">Audit logs</h1>
-        <p class="text-secondary mb-0">Records are append-only. Passwords, tokens, and session identifiers are never stored here.</p>
+        <p class="text-secondary mb-0">Append-only history. Passwords, tokens, and session identifiers are never stored here.</p>
     </div>
 </div>
 
-<div class="card stat-card mb-3">
+<div class="card crms-card mb-3">
     <div class="card-body">
         <form class="row g-2" method="get">
             <div class="col-md-4">
@@ -73,7 +74,7 @@ require BASE_PATH . '/includes/header.php';
                 <input class="form-control" name="action" value="<?= e($filters['action']) ?>" placeholder="Exact action, e.g. login.success">
             </div>
             <div class="col-md-3">
-                <select class="form-select" name="result">
+                <select class="form-select" name="result" data-auto-submit>
                     <option value="">All results</option>
                     <?php foreach (['success', 'failure', 'denied'] as $result): ?>
                         <option value="<?= e($result) ?>" <?= $filters['result'] === $result ? 'selected' : '' ?>><?= e(ucfirst($result)) ?></option>
@@ -87,7 +88,7 @@ require BASE_PATH . '/includes/header.php';
     </div>
 </div>
 
-<div class="card stat-card">
+<div class="card crms-card">
     <div class="table-responsive">
         <table class="table align-middle mb-0">
             <thead>
@@ -106,14 +107,14 @@ require BASE_PATH . '/includes/header.php';
             <?php endif; ?>
             <?php foreach ($rows as $row): ?>
                 <tr>
-                    <td><?= e($row['created_at']) ?></td>
+                    <td><?= e(format_datetime($row['created_at'])) ?></td>
                     <td><?= e(trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')) ?: 'System') ?><div class="small text-secondary"><?= e((string) $row['email']) ?></div></td>
                     <td>
                         <code><?= e($row['action']) ?></code>
                         <?php if ($row['description']): ?><div class="small text-secondary"><?= e($row['description']) ?></div><?php endif; ?>
                     </td>
                     <td><?= e($row['entity_type']) ?><?= $row['entity_id'] ? ' #' . e($row['entity_id']) : '' ?></td>
-                    <td><span class="badge text-bg-light"><?= e($row['result']) ?></span></td>
+                    <td><span class="badge badge-result-<?= e($row['result']) ?>"><?= e($row['result']) ?></span></td>
                     <td><?= e((string) $row['ip_address']) ?></td>
                 </tr>
             <?php endforeach; ?>

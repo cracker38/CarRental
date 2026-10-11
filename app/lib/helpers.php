@@ -165,3 +165,48 @@ function setting(string $key, mixed $default = null): mixed
 {
     return Settings::get($key, $default);
 }
+
+function format_datetime(?string $value, string $empty = 'Never'): string
+{
+    if ($value === null || trim($value) === '') {
+        return $empty;
+    }
+    try {
+        $dt = new DateTimeImmutable($value);
+        return $dt->format('d M Y, H:i');
+    } catch (Throwable $e) {
+        return $empty;
+    }
+}
+
+function initials(string $first, string $last = ''): string
+{
+    $a = mb_substr(trim($first), 0, 1);
+    $b = mb_substr(trim($last), 0, 1);
+    return strtoupper($a . $b);
+}
+
+function greeting(): string
+{
+    $hour = (int) date('G');
+    if ($hour < 12) {
+        return 'Good morning';
+    }
+    if ($hour < 17) {
+        return 'Good afternoon';
+    }
+    return 'Good evening';
+}
+
+function permission_group(string $key): string
+{
+    $prefix = explode('.', $key, 2)[0];
+    return match ($prefix) {
+        'users', 'roles', 'audit', 'settings' => 'Administration',
+        'vehicles', 'drivers', 'maintenance' => 'Fleet',
+        'customers', 'reservations', 'rentals', 'agreements' => 'Rentals',
+        'invoices', 'payments', 'refunds', 'deposits' => 'Finance',
+        'reports', 'notifications' => 'Insights',
+        default => ucfirst($prefix),
+    };
+}

@@ -32,14 +32,21 @@ ob_start();
     <input type="hidden" name="token" value="<?= e($token) ?>">
     <div class="mb-3">
         <label class="form-label" for="password">New password</label>
-        <input class="form-control" type="password" id="password" name="password" required minlength="10">
+        <div class="input-icon">
+            <i class="bi bi-lock"></i>
+            <input class="form-control" type="password" id="password" name="password" required minlength="10">
+            <button class="password-toggle" type="button" data-password-toggle="password" aria-label="Show password"><i class="bi bi-eye"></i></button>
+        </div>
         <div class="form-text">At least 10 characters, with uppercase, lowercase, and a number.</div>
     </div>
     <div class="mb-3">
         <label class="form-label" for="password_confirm">Confirm password</label>
-        <input class="form-control" type="password" id="password_confirm" name="password_confirm" required>
+        <div class="input-icon">
+            <i class="bi bi-lock"></i>
+            <input class="form-control" type="password" id="password_confirm" name="password_confirm" required>
+        </div>
     </div>
-    <button class="btn btn-primary w-100" type="submit">Update password</button>
+    <button class="btn btn-primary w-100 py-2" type="submit">Update password</button>
 </form>
 <?php
 $authContent = ob_get_clean();

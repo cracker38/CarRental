@@ -8,6 +8,16 @@ final class RoleService
         return Database::connection()->query('SELECT * FROM roles ORDER BY role_id')->fetchAll();
     }
 
+    public static function userCounts(): array
+    {
+        $rows = Database::connection()->query('SELECT role_id, COUNT(*) AS total FROM users GROUP BY role_id')->fetchAll();
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int) $row['role_id']] = (int) $row['total'];
+        }
+        return $map;
+    }
+
     public static function find(int $id): ?array
     {
         $stmt = Database::connection()->prepare('SELECT * FROM roles WHERE role_id = :id');

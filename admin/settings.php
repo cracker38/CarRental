@@ -5,6 +5,10 @@ $actor = requirePermission('settings.manage');
 
 $catalog = Settings::CATALOG;
 $current = Settings::all();
+$groups = [];
+foreach ($catalog as $key => $meta) {
+    $groups[$meta['group'] ?? 'General'][$key] = $meta;
+}
 
 if (is_post()) {
     Csrf::requireValid();
@@ -58,42 +62,53 @@ require BASE_PATH . '/includes/header.php';
 ?>
 <div class="page-head">
     <div>
+        <div class="crumb">Administration</div>
         <h1 class="h3 mb-1">System settings</h1>
-        <p class="text-secondary mb-0">Non-secret business configuration. Database credentials are not stored here.</p>
+        <p class="text-secondary mb-0">Non-secret business configuration. Database credentials are never stored here.</p>
     </div>
 </div>
 
-<div class="card stat-card">
+<div class="card crms-card">
     <div class="card-body">
         <?php if (!empty($errors['form'])): ?><div class="alert alert-danger"><?= e($errors['form']) ?></div><?php endif; ?>
         <form method="post">
             <?= csrf_field() ?>
-            <div class="row g-3">
-                <?php foreach ($catalog as $key => $meta): ?>
-                    <?php
-                    $row = $current[$key] ?? null;
-                    $value = $row['setting_value'] ?? '';
-                    if ($meta['type'] === 'boolean') {
-                        $checked = in_array(strtolower((string) $value), ['1', 'true', 'yes', 'on'], true);
-                    }
-                    ?>
-                    <div class="col-md-6">
-                        <label class="form-label"><?= e($meta['label']) ?></label>
-                        <?php if ($meta['type'] === 'boolean'): ?>
-                            <input type="hidden" name="settings[<?= e($key) ?>]" value="false">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="settings[<?= e($key) ?>]" value="true" <?= $checked ? 'checked' : '' ?>>
-                                <label class="form-check-label"><?= e($meta['description']) ?></label>
+            <?php foreach ($groups as $group => $items): ?>
+                <section class="settings-section">
+                    <h2><?= e($group) ?></h2>
+                    <div class="row g-3">
+                        <?php foreach ($items as $key => $meta): ?>
+                            <?php
+                            $row = $current[$key] ?? null;
+                            $value = $row['setting_value'] ?? '';
+                            $checked = in_array(strtolower((string) $value), ['1', 'true', 'yes', 'on'], true);
+                            ?>
+                            <div class="col-md-6">
+                                <label class="form-label"><?= e($meta['label']) ?></label>
+                                <?php if ($meta['type'] === 'boolean'): ?>
+                                    <input type="hidden" name="settings[<?= e($key) ?>]" value="false">
+                                    <div class="form-check form-switch mt-2">
+                                        <input class="form-check-input" type="checkbox" name="settings[<?= e($key) ?>]" value="true" <?= $checked ? 'checked' : '' ?>>
+                                        <label class="form-check-label"><?= e($meta['description']) ?></label>
+                                    </div>
+                                <?php elseif (!empty($meta['options'])): ?>
+                                    <select class="form-select <?= isset($errors[$key]) ? 'is-invalid' : '' ?>" name="settings[<?= e($key) ?>]">
+                                        <?php foreach ($meta['options'] as $opt => $label): ?>
+                                            <option value="<?= e((string) $opt) ?>" <?= (string) $value === (string) $opt ? 'selected' : '' ?>><?= e($label) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <div class="form-text"><?= e($meta['description']) ?></div>
+                                <?php else: ?>
+                                    <input class="form-control <?= isset($errors[$key]) ? 'is-invalid' : '' ?>" name="settings[<?= e($key) ?>]" value="<?= e((string) $value) ?>">
+                                    <div class="form-text"><?= e($meta['description']) ?></div>
+                                <?php endif; ?>
+                                <?php if (isset($errors[$key])): ?><div class="invalid-feedback d-block"><?= e($errors[$key]) ?></div><?php endif; ?>
                             </div>
-                        <?php else: ?>
-                            <input class="form-control <?= isset($errors[$key]) ? 'is-invalid' : '' ?>" name="settings[<?= e($key) ?>]" value="<?= e((string) $value) ?>">
-                            <div class="form-text"><?= e($meta['description']) ?></div>
-                            <?php if (isset($errors[$key])): ?><div class="invalid-feedback d-block"><?= e($errors[$key]) ?></div><?php endif; ?>
-                        <?php endif; ?>
+                        <?php endforeach; ?>
                     </div>
-                <?php endforeach; ?>
-            </div>
-            <button class="btn btn-primary mt-4" type="submit">Save settings</button>
+                </section>
+            <?php endforeach; ?>
+            <button class="btn btn-primary" type="submit">Save settings</button>
         </form>
     </div>
 </div>

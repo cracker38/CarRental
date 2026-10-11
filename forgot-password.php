@@ -17,20 +17,23 @@ if (is_post()) {
 $pageTitle = 'Reset password';
 ob_start();
 ?>
-<p class="text-secondary">Enter your account email. For security, the same message is shown whether or not the account exists.</p>
+<p class="text-secondary">Enter the email on your staff account. For security, we show the same message whether or not the account exists.</p>
 <form method="post">
     <?= csrf_field() ?>
     <div class="mb-3">
-        <label class="form-label" for="email">Email</label>
-        <input class="form-control" type="email" id="email" name="email" required>
+        <label class="form-label" for="email">Work email</label>
+        <div class="input-icon">
+            <i class="bi bi-envelope"></i>
+            <input class="form-control" type="email" id="email" name="email" required placeholder="you@company.com">
+        </div>
     </div>
-    <button class="btn btn-primary w-100" type="submit">Send reset instructions</button>
+    <button class="btn btn-primary w-100 py-2" type="submit">Send reset instructions</button>
     <div class="text-center mt-3">
-        <a href="<?= e(base_url('login.php')) ?>">Back to sign in</a>
+        <a href="<?= e(base_url('login.php')) ?>"><i class="bi bi-arrow-left"></i> Back to sign in</a>
     </div>
 </form>
 <?php if (config('debug')): ?>
-    <p class="small text-secondary mt-4 mb-0">Development mode: reset links are written to a protected storage file, not displayed here.</p>
+    <p class="small text-secondary mt-4 mb-0">Development mode: reset links are written to a protected storage file, not shown on this page.</p>
 <?php endif; ?>
 <?php
 $authContent = ob_get_clean();

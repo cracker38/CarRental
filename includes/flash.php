@@ -7,7 +7,7 @@ if (!$flashes) {
 foreach ($flashes as $flash):
     $type = in_array($flash['type'] ?? '', ['success', 'danger', 'warning', 'info'], true) ? $flash['type'] : 'info';
     ?>
-    <div class="alert alert-<?= e($type) ?> alert-dismissible fade show shadow-sm" role="alert">
+    <div class="alert alert-<?= e($type) ?> alert-dismissible fade show" role="alert">
         <?= e((string) ($flash['message'] ?? '')) ?>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>

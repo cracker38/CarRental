@@ -15,15 +15,19 @@ $moduleExists = static function (string $relative): bool {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($pageTitle) ?> | <?= e($appName) ?></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?= e(base_url('assets/css/app.css')) ?>" rel="stylesheet">
 </head>
 <body class="crms-body">
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 <div class="d-flex" id="app-shell">
     <aside class="crms-sidebar" id="sidebar">
         <div class="brand">
-            <span class="brand-mark"><i class="bi bi-speedometer2"></i></span>
+            <span class="brand-mark"><i class="bi bi-car-front-fill"></i></span>
             <div>
                 <strong><?= e($appName) ?></strong>
                 <small><?= e($businessName) ?></small>
@@ -76,23 +80,36 @@ $moduleExists = static function (string $relative): bool {
                 <a class="nav-link" href="<?= e(base_url('reports/index.php')) ?>"><i class="bi bi-graph-up"></i> Reports</a>
             <?php endif; ?>
         </nav>
+        <div class="sidebar-foot">
+            <?= e((string) setting('default_currency', 'RWF')) ?> · <?= e((string) setting('timezone', 'Africa/Kigali')) ?>
+        </div>
     </aside>
     <div class="crms-main">
         <header class="crms-topbar">
-            <button class="btn btn-link d-lg-none" type="button" id="sidebarToggle" aria-label="Open menu">
-                <i class="bi bi-list fs-3"></i>
+            <button class="btn btn-link d-lg-none p-0 text-dark" type="button" id="sidebarToggle" aria-label="Open menu">
+                <i class="bi bi-list fs-2"></i>
             </button>
-            <div class="ms-auto d-flex align-items-center gap-3">
+            <div class="topbar-title d-none d-md-block"><?= e($pageTitle) ?></div>
+            <div class="ms-auto d-flex align-items-center gap-2">
                 <?php if ($user): ?>
-                    <div class="user-chip">
-                        <div class="avatar"><?= e(strtoupper(substr((string) $user['first_name'], 0, 1))) ?></div>
-                        <div>
-                            <strong><?= e($user['first_name'] . ' ' . $user['last_name']) ?></strong>
-                            <small><?= e($user['role_name']) ?></small>
-                        </div>
+                    <div class="dropdown">
+                        <button class="btn btn-link text-decoration-none text-dark p-0" data-bs-toggle="dropdown" aria-expanded="false">
+                            <div class="user-chip">
+                                <div class="avatar"><?= e(initials((string) $user['first_name'], (string) $user['last_name'])) ?></div>
+                                <div class="d-none d-sm-block text-start">
+                                    <strong><?= e($user['first_name'] . ' ' . $user['last_name']) ?></strong>
+                                    <small><?= e($user['role_name']) ?></small>
+                                </div>
+                                <i class="bi bi-chevron-down small text-secondary"></i>
+                            </div>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><h6 class="dropdown-header"><?= e($user['email']) ?></h6></li>
+                            <li><a class="dropdown-item" href="<?= e(base_url('admin/change-password.php')) ?>"><i class="bi bi-key me-2"></i>Change password</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="<?= e(base_url('logout.php')) ?>"><i class="bi bi-box-arrow-right me-2"></i>Sign out</a></li>
+                        </ul>
                     </div>
-                    <a class="btn btn-outline-secondary btn-sm" href="<?= e(base_url('admin/change-password.php')) ?>">Password</a>
-                    <a class="btn btn-primary btn-sm" href="<?= e(base_url('logout.php')) ?>">Sign out</a>
                 <?php endif; ?>
             </div>
         </header>
