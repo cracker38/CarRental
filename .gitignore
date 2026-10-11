@@ -1,0 +1,7 @@
+app/config/local.php
+storage/*
+!storage/.htaccess
+!storage/.gitkeep
+*.log
+.DS_Store
+Thumbs.db
