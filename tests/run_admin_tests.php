@@ -40,6 +40,7 @@ function actor_from_user(int $userId): array
 }
 
 $pdo = Database::connection();
+$pdo->prepare("DELETE FROM audit_logs WHERE user_agent = 'CRMS-Test-Runner' AND action IN ('login.failed', 'login.locked')")->execute();
 $adminRole = (int) $pdo->query("SELECT role_id FROM roles WHERE role_name = 'System Administrator'")->fetchColumn();
 $managerRole = (int) $pdo->query("SELECT role_id FROM roles WHERE role_name = 'Business Manager'")->fetchColumn();
 $officerRole = (int) $pdo->query("SELECT role_id FROM roles WHERE role_name = 'Rental Officer'")->fetchColumn();
@@ -107,43 +108,30 @@ $escalation = UserService::create([
 assert_true($escalation['ok'] === false, 'Privilege escalation via role assignment is blocked');
 
 $pdo->prepare('INSERT INTO users (role_id, first_name, last_name, email, password_hash, account_status) VALUES (?,?,?,?,?,?)')
-    ->execute([$adminRole, 'Last', 'Admin', 'test.crms.lastadmin@carrental.local', password_hash('LastAdmin1234', PASSWORD_DEFAULT), 'inactive']);
-$otherAdmin = (int) $pdo->query("SELECT COUNT(*) FROM users u JOIN roles r ON r.role_id=u.role_id WHERE r.role_name='System Administrator' AND u.account_status='active'")->fetchColumn();
-$block = UserService::setStatus($adminId, 'inactive', $admin);
-if ($otherAdmin <= 1) {
-    assert_true($block['ok'] === false, 'Last active administrator cannot be deactivated');
+    ->execute([$adminRole, 'Temp', 'Admin', 'test.crms.tempadmin@carrental.local', password_hash('TempAdmin1234', PASSWORD_DEFAULT), 'active']);
+$tempAdminId = (int) $pdo->lastInsertId();
+$deactivateTemp = UserService::setStatus($tempAdminId, 'inactive', $admin);
+assert_true($deactivateTemp['ok'] === true, 'An extra administrator can be deactivated');
+if (UserService::activeAdminCount() <= 1) {
+    $blockLast = UserService::setStatus($adminId, 'inactive', $admin);
+    assert_true($blockLast['ok'] === false && str_contains((string) ($blockLast['error'] ?? ''), 'last active administrator'), 'Last active administrator cannot be deactivated');
 } else {
-    UserService::setStatus($adminId, 'active', $admin);
     assert_true(true, 'Last active administrator protection skipped because extra admins exist');
 }
 
-PasswordReset::request('test.crms.admin@carrental.local');
-$tokenRow = $pdo->query('SELECT token_id FROM password_reset_tokens WHERE user_id = ' . $adminId . ' AND used_at IS NULL ORDER BY token_id DESC LIMIT 1')->fetch();
-assert_true(!empty($tokenRow), 'Password reset token is stored');
+$rawToken = PasswordReset::issueToken($adminId);
+$tokenRow = $pdo->prepare('SELECT token_id FROM password_reset_tokens WHERE user_id = :id AND used_at IS NULL ORDER BY token_id DESC LIMIT 1');
+$tokenRow->execute([':id' => $adminId]);
+assert_true((bool) $tokenRow->fetch(), 'Password reset token is stored');
 $resetFail = PasswordReset::reset('not-a-real-token', 'NewPassword123');
 assert_true($resetFail['ok'] === false, 'Invalid reset token is rejected');
-
-$logFile = BASE_PATH . '/storage/password_resets.log';
-if (is_file($logFile)) {
-    $lines = file($logFile);
-    $last = $lines ? trim((string) end($lines)) : '';
-    if (preg_match('/token=([a-f0-9]+)/', $last, $m)) {
-        $resetOk = PasswordReset::reset($m[1], 'BrandNewPass123');
-        assert_true($resetOk['ok'] === true, 'Valid password reset succeeds');
-        $reuse = PasswordReset::reset($m[1], 'BrandNewPass123');
-        assert_true($reuse['ok'] === false, 'Reset token cannot be reused');
-        $loginAfter = Auth::attempt('test.crms.admin@carrental.local', 'BrandNewPass123');
-        assert_true($loginAfter['ok'] === true, 'Login works after password reset');
-    } else {
-        assert_true(false, 'Valid password reset succeeds');
-        assert_true(false, 'Reset token cannot be reused');
-        assert_true(false, 'Login works after password reset');
-    }
-} else {
-    assert_true(false, 'Valid password reset succeeds');
-    assert_true(false, 'Reset token cannot be reused');
-    assert_true(false, 'Login works after password reset');
-}
+$resetOk = PasswordReset::reset($rawToken, 'BrandNewPass123');
+assert_true($resetOk['ok'] === true, 'Valid password reset succeeds');
+$reuse = PasswordReset::reset($rawToken, 'BrandNewPass123');
+assert_true($reuse['ok'] === false, 'Reset token cannot be reused');
+$pdo->prepare("DELETE FROM audit_logs WHERE user_agent = 'CRMS-Test-Runner' AND action IN ('login.failed', 'login.locked')")->execute();
+$loginAfter = Auth::attempt('test.crms.admin@carrental.local', 'BrandNewPass123');
+assert_true($loginAfter['ok'] === true, 'Login works after password reset');
 
 Settings::update('business_name', 'CRMS Test Fleet', $adminId);
 assert_true(Settings::get('business_name') === 'CRMS Test Fleet', 'Settings update persists');

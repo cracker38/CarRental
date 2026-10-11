@@ -14,9 +14,13 @@ if (is_post()) {
     try {
         foreach ($catalog as $key => $meta) {
             $raw = $_POST['settings'][$key] ?? ($meta['type'] === 'boolean' ? 'false' : '');
-            if ($key === 'timezone' && @timezone_open((string) $raw) === false) {
-                $errors[$key] = 'Enter a valid timezone identifier such as Africa/Kigali.';
-                continue;
+            if ($key === 'timezone') {
+                try {
+                    new DateTimeZone((string) $raw);
+                } catch (Throwable $e) {
+                    $errors[$key] = 'Enter a valid timezone identifier such as Africa/Kigali.';
+                    continue;
+                }
             }
             if ($key === 'default_currency' && !preg_match('/^[A-Z]{3}$/', (string) $raw)) {
                 $errors[$key] = 'Use a 3-letter currency code such as RWF.';

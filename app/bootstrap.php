@@ -23,6 +23,8 @@ $baseFs = str_replace('\\', '/', BASE_PATH);
 $webPath = '/';
 if ($docRoot !== '' && str_starts_with(strtolower($baseFs), strtolower($docRoot))) {
     $webPath = substr($baseFs, strlen($docRoot)) ?: '/';
+} elseif (PHP_SAPI === 'cli') {
+    $webPath = '/carrental/CarRental';
 }
 $webPath = '/' . trim(str_replace('\\', '/', $webPath), '/');
 if ($webPath !== '/') {
@@ -53,8 +55,11 @@ try {
     Database::connection();
     Settings::ensureDefaults();
     $timezone = (string) Settings::get('timezone', 'Africa/Kigali');
-    if (@timezone_open($timezone)) {
+    try {
+        new DateTimeZone($timezone);
         date_default_timezone_set($timezone);
+    } catch (Throwable $e) {
+        date_default_timezone_set('Africa/Kigali');
     }
 } catch (Throwable $e) {
     if (!empty($config['debug'])) {

@@ -30,6 +30,9 @@ final class RoleService
 
     public static function savePermissions(int $roleId, array $permissionIds, array $actor): array
     {
+        if (!Authorization::allows('roles.manage', $actor)) {
+            return ['ok' => false, 'error' => 'You are not allowed to manage roles.'];
+        }
         $role = self::find($roleId);
         if (!$role) {
             return ['ok' => false, 'error' => 'Role was not found.'];
@@ -68,6 +71,9 @@ final class RoleService
 
     public static function create(string $name, string $description, array $actor): array
     {
+        if (!Authorization::allows('roles.manage', $actor)) {
+            return ['ok' => false, 'error' => 'You are not allowed to manage roles.'];
+        }
         $name = trim($name);
         if ($name === '' || mb_strlen($name) > 60) {
             return ['ok' => false, 'error' => 'Role name is required and must be 60 characters or fewer.'];

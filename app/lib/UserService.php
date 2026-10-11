@@ -160,6 +160,9 @@ final class UserService
 
     public static function setStatus(int $id, string $status, array $actor): array
     {
+        if (!Authorization::allows('users.manage', $actor)) {
+            return ['ok' => false, 'error' => 'You are not allowed to change account status.'];
+        }
         $existing = self::find($id);
         if (!$existing) {
             return ['ok' => false, 'error' => 'User was not found.'];
@@ -167,11 +170,11 @@ final class UserService
         if (!in_array($status, ['active', 'inactive', 'suspended', 'pending'], true)) {
             return ['ok' => false, 'error' => 'Invalid status.'];
         }
-        if ((int) $actor['user_id'] === $id && $status !== 'active') {
-            return ['ok' => false, 'error' => 'You cannot deactivate your own account.'];
-        }
         if ($existing['role_name'] === 'System Administrator' && $status !== 'active' && self::activeAdminCount() <= 1) {
             return ['ok' => false, 'error' => 'Cannot deactivate the last active administrator.'];
+        }
+        if ((int) $actor['user_id'] === $id && $status !== 'active') {
+            return ['ok' => false, 'error' => 'You cannot deactivate your own account.'];
         }
         Database::connection()->prepare('UPDATE users SET account_status = :s WHERE user_id = :id')
             ->execute([':s' => $status, ':id' => $id]);
@@ -181,6 +184,9 @@ final class UserService
 
     public static function adminResetPassword(int $id, string $password, array $actor): array
     {
+        if (!Authorization::allows('users.manage', $actor)) {
+            return ['ok' => false, 'error' => 'You are not allowed to reset passwords.'];
+        }
         $existing = self::find($id);
         if (!$existing) {
             return ['ok' => false, 'error' => 'User was not found.'];
@@ -265,4 +271,11 @@ final class UserService
             $errors['account_status'] = 'Select a valid account status.';
         }
         if ($creating) {
-            $pwd = Validator
+            $pwd = Validator::password((string) ($data['password'] ?? ''));
+            if ($pwd) {
+                $errors['password'] = $pwd;
+            }
+        }
+        return $errors;
+    }
+}

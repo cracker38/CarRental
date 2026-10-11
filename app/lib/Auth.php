@@ -94,7 +94,9 @@ final class Auth
             return ['ok' => false, 'error' => 'This account cannot sign in. Contact an administrator.'];
         }
 
-        session_regenerate_id(true);
+        if (!headers_sent() && session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
         $_SESSION['auth_ok'] = true;
         $_SESSION['user_id'] = (int) $user['user_id'];
         $_SESSION['last_activity'] = time();

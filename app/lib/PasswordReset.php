@@ -19,6 +19,13 @@ final class PasswordReset
             return;
         }
 
+        $raw = self::issueToken((int) $user['user_id']);
+        Audit::record((int) $user['user_id'], 'password_reset.request', 'user', (string) $user['user_id'], 'Password reset token created.', 'success');
+        self::deliver((int) $user['user_id'], $raw);
+    }
+
+    public static function issueToken(int $userId): string
+    {
         $ttl = (int) config('password_reset_ttl_minutes', 60);
         $raw = bin2hex(random_bytes(32));
         $hash = self::hashToken($raw);
@@ -28,17 +35,16 @@ final class PasswordReset
         $pdo->beginTransaction();
         try {
             $pdo->prepare('UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = :id AND used_at IS NULL')
-                ->execute([':id' => $user['user_id']]);
+                ->execute([':id' => $userId]);
             $pdo->prepare('INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES (:uid, :hash, :exp)')
-                ->execute([':uid' => $user['user_id'], ':hash' => $hash, ':exp' => $expires]);
+                ->execute([':uid' => $userId, ':hash' => $hash, ':exp' => $expires]);
             $pdo->commit();
         } catch (Throwable $e) {
             $pdo->rollBack();
             throw $e;
         }
 
-        Audit::record((int) $user['user_id'], 'password_reset.request', 'user', (string) $user['user_id'], 'Password reset token created.', 'success');
-        self::deliver((int) $user['user_id'], $raw);
+        return $raw;
     }
 
     public static function reset(string $rawToken, string $password): array

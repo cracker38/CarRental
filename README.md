@@ -84,19 +84,26 @@ Open the XAMPP Control Panel and start:
 ### 5. Configure the Database
 
 1. Open `http://localhost/phpmyadmin/`.
-2. Create the database specified by the project configuration.
-3. Import the project's SQL file if one is available.
-4. Configure the database connection settings in the project.
+2. Import `Database/carrental.sql` to create the `carrental` database if it does not already exist.
+3. Database connection defaults are in `app/config/config.php` (XAMPP: user `root`, empty password, database `carrental`). Copy `app/config/local.example.php` to `app/config/local.php` to override them.
 
-**Note:** The database name, SQL filename, and configuration file depend on the actual project implementation.
+### 6. Create the first administrator
 
-### 6. Run the Application
+```bash
+C:\xampp\php\php.exe scripts\seed_admin.php
+```
 
-Open the project in your browser:
+Default development account: `admin@carrental.local` / `Admin@12345`. Change this password after the first sign-in.
+
+### 7. Run the Application
+
+Open the project in the browser:
 
 ```text
-http://localhost/CarRental/
+http://localhost/carrental/CarRental/
 ```
+
+System administration, authentication, and role-based access are documented in `docs/SYSTEM_ADMIN.md`. Other members should read `docs/INTEGRATION.md` before adding module pages.
 
 ## Team Members
 
