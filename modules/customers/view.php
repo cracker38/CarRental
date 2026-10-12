@@ -79,7 +79,7 @@ $flash = get_flash();
   <tr><th>Code</th><th>Vehicle</th><th>Pickup</th><th>Return</th><th>Amount</th><th>Status</th></tr>
   <?php foreach ($history as $r): ?>
   <tr>
-    <td><?= e($r['reservation_code']) ?></td>
+    <td><a href="../reservations/view.php?id=<?= (int)$r['reservation_id'] ?>"><?= e($r['reservation_code']) ?></a></td>
     <td><?= e($r['make'] . ' ' . $r['model'] . ' (' . $r['registration_no'] . ')') ?></td>
     <td><?= e($r['pickup_datetime']) ?></td>
     <td><?= e($r['return_datetime']) ?></td>
