@@ -59,6 +59,10 @@ $flash = get_flash();
 
 <p><a href="edit.php?id=<?= (int)$c['customer_id'] ?>">Edit details</a></p>
 
+<?php if ($c['status'] === 'active'): ?>
+  <p><a href="../reservations/search.php?customer_id=<?= (int)$c['customer_id'] ?>">Make a reservation</a></p>
+<?php endif; ?>
+
 <h2>Change status</h2>
 <form method="post" onsubmit="return confirm('Change this customer\'s status?');">
   <?= csrf_field() ?>
