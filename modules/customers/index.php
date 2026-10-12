@@ -36,7 +36,9 @@ $flash = get_flash();
 </form>
 
 <table border="1" cellpadding="6">
-  <tr><th>Code</th><th>Name</th><th>Phone</th><th>Email</th><th>Status</th></tr>
+  <tr>
+    <th>Code</th><th>Name</th><th>Phone</th><th>Email</th><th>Status</th><th>Actions</th>
+  </tr>
   <?php foreach ($customers as $c): ?>
   <tr>
     <td><?= e($c['customer_code']) ?></td>
@@ -44,9 +46,15 @@ $flash = get_flash();
     <td><?= e($c['phone']) ?></td>
     <td><?= e($c['email']) ?></td>
     <td><?= e($c['status']) ?></td>
+    <td>
+      <a href="view.php?id=<?= (int)$c['customer_id'] ?>">View</a> |
+      <a href="edit.php?id=<?= (int)$c['customer_id'] ?>">Edit</a>
+    </td>
   </tr>
   <?php endforeach; ?>
-  <?php if (!$customers): ?><tr><td colspan="5">No customers found.</td></tr><?php endif; ?>
+  <?php if (!$customers): ?>
+  <tr><td colspan="6">No customers found.</td></tr>
+  <?php endif; ?>
 </table>
 </body>
 </html>
