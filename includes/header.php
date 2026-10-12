@@ -52,9 +52,14 @@ if ($displayName === '') {
                 <span class="cr-brand-mark">CR</span>
                 <span>CarRental<small>Management workspace</small></span>
             </a>
-            <div class="cr-user-chip">
-                <span class="cr-avatar"><?= e(strtoupper(substr($displayName, 0, 1))) ?></span>
-                <span class="cr-user-label"><?= e($displayName) ?></span>
+            <div class="d-flex align-items-center gap-2">
+                <div class="cr-user-chip">
+                    <span class="cr-avatar"><?= e(strtoupper(substr($displayName, 0, 1))) ?></span>
+                    <span class="cr-user-label"><?= e($displayName) ?></span>
+                </div>
+                <?php if (is_logged_in()): ?>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?= e(base_url('logout.php')) ?>" style="border-radius:999px;font-size:12px;font-weight:700;">Sign out</a>
+                <?php endif; ?>
             </div>
         </div>
     </div>

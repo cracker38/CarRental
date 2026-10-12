@@ -211,6 +211,7 @@ final class RentalOperations
             $pdo->prepare('UPDATE vehicles SET current_mileage = ?, fuel_level_percent = ?, status = ? WHERE vehicle_id = ?')
                 ->execute([$mileage, $fuel, $status === 'inspected' ? 'maintenance' : 'available', $rental['vehicle_id']]);
             $pdo->prepare("UPDATE rental_agreements SET status = 'completed' WHERE agreement_id = ? AND status = 'active'")->execute([$rental['agreement_id']]);
+            $pdo->prepare("UPDATE reservations SET status = 'completed' WHERE reservation_id = ? AND status = 'confirmed'")->execute([$rental['reservation_id']]);
             $pdo->prepare("INSERT INTO vehicle_inspections (rental_id, vehicle_id, inspected_by, inspection_type, odometer_reading, fuel_level_percent, exterior_condition, interior_condition, cleanliness, damage_notes, other_notes) VALUES (?, ?, ?, 'return', ?, ?, ?, ?, ?, ?, ?)")
                 ->execute([$rentalId, $rental['vehicle_id'], $userId, $mileage, $fuel, $inspection['exterior_condition'] ?? 'good', $inspection['interior_condition'] ?? 'good', $inspection['cleanliness'] ?? 'clean', $inspection['damage_notes'] ?? null, $inspection['other_notes'] ?? null]);
             if ($status === 'inspected') {
@@ -231,6 +232,39 @@ final class RentalOperations
         }
     }
 
+    public static function closeRental(PDO $pdo, int $rentalId, ?int $userId): void
+    {
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare('SELECT rental_id, rental_number, status FROM rentals WHERE rental_id = ? FOR UPDATE');
+            $stmt->execute([$rentalId]);
+            $rental = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$rental) {
+                throw new RuntimeException('Rental was not found.');
+            }
+            if (!in_array($rental['status'], ['returned', 'inspected'], true)) {
+                throw new RuntimeException('Only returned or inspected rentals can be closed.');
+            }
+            $stmt = $pdo->prepare("SELECT invoice_id, total_amount, status FROM invoices WHERE rental_id = ? AND status <> 'void' ORDER BY invoice_id DESC LIMIT 1 FOR UPDATE");
+            $stmt->execute([$rentalId]);
+            $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($invoice && !in_array($invoice['status'], ['paid', 'refunded'], true)) {
+                $balance = self::invoiceBalance($pdo, (int)$invoice['invoice_id']);
+                if ($balance['balance'] > 0.009) {
+                    throw new RuntimeException('Settle or void the outstanding invoice before closing this rental.');
+                }
+            }
+            $pdo->prepare("UPDATE rentals SET status = 'closed', handled_by = ? WHERE rental_id = ?")->execute([$userId, $rentalId]);
+            self::audit($pdo, $userId, 'rental.closed', 'rental', (string)$rentalId, 'Rental ' . $rental['rental_number'] . ' closed', ['status' => $rental['status']], ['status' => 'closed']);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
     public static function createInvoiceForRental(PDO $pdo, int $rentalId, ?int $userId): int
     {
         $pdo->beginTransaction();
@@ -239,7 +273,12 @@ final class RentalOperations
             $stmt->execute([$rentalId]);
             $r = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$r) throw new RuntimeException('Rental was not found.');
-            if (in_array($r['status'], ['scheduled','cancelled'], true)) throw new RuntimeException('An invoice can only be created after pickup has occurred.');
+            if (!in_array($r['status'], ['returned', 'inspected', 'closed', 'active', 'overdue'], true)) {
+                throw new RuntimeException('An invoice can only be created after pickup has occurred.');
+            }
+            if (in_array($r['status'], ['active', 'overdue'], true)) {
+                throw new RuntimeException('Complete the vehicle return and calculate final charges before generating the invoice.');
+            }
             $existing = $pdo->prepare("SELECT invoice_id FROM invoices WHERE rental_id = ? AND status <> 'void' ORDER BY invoice_id DESC LIMIT 1");
             $existing->execute([$rentalId]);
             $existingId = $existing->fetchColumn();
@@ -297,10 +336,19 @@ final class RentalOperations
     {
         $data = self::invoiceBalance($pdo, $invoiceId);
         $invoice = $data['invoice'];
-        if (in_array($invoice['status'], ['void','draft'], true)) return;
-        if ($data['balance'] <= 0.009) $status = 'paid';
-        elseif ($data['net_paid'] > 0.009) $status = (!empty($invoice['due_date']) && $invoice['due_date'] < date('Y-m-d')) ? 'overdue' : 'partially_paid';
-        else $status = (!empty($invoice['due_date']) && $invoice['due_date'] < date('Y-m-d')) ? 'overdue' : 'issued';
+        if (in_array($invoice['status'], ['void', 'draft'], true)) {
+            return;
+        }
+        $due = !empty($invoice['due_date']) && $invoice['due_date'] < date('Y-m-d');
+        if ($data['gross_paid'] > 0.009 && $data['net_paid'] <= 0.009) {
+            $status = 'refunded';
+        } elseif ($data['balance'] <= 0.009) {
+            $status = 'paid';
+        } elseif ($data['net_paid'] > 0.009) {
+            $status = $due ? 'overdue' : 'partially_paid';
+        } else {
+            $status = $due ? 'overdue' : 'issued';
+        }
         $pdo->prepare('UPDATE invoices SET status = ? WHERE invoice_id = ?')->execute([$status, $invoiceId]);
     }
 
@@ -312,18 +360,45 @@ final class RentalOperations
         $pdo->beginTransaction();
         try {
             $data = self::invoiceBalance($pdo, $invoiceId, true);
-            if (in_array($data['invoice']['status'], ['draft','void'], true)) throw new RuntimeException('Issue the invoice before recording a payment.');
-            if ($amount > $data['balance'] + 0.009) throw new RuntimeException('Payment exceeds the outstanding balance. Record only the amount actually received.');
+            if (in_array($data['invoice']['status'], ['draft', 'void', 'refunded'], true)) {
+                throw new RuntimeException('Issue the invoice before recording a payment.');
+            }
+            if ($data['balance'] <= 0.009) {
+                throw new RuntimeException('This invoice has no outstanding balance.');
+            }
+            if ($amount > $data['balance'] + 0.009) {
+                throw new RuntimeException('Payment exceeds the outstanding balance. Record only the amount actually received.');
+            }
+            $reference = $reference !== null ? trim($reference) : null;
+            if ($reference === '') {
+                $reference = null;
+            }
+            if ($reference !== null) {
+                $dup = $pdo->prepare('SELECT payment_id FROM payments WHERE transaction_reference = ? LIMIT 1');
+                $dup->execute([$reference]);
+                if ($dup->fetchColumn()) {
+                    throw new RuntimeException('That transaction reference is already recorded on another payment. Use a unique provider/bank reference.');
+                }
+            }
             $number = 'PAY-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
-            $stmt = $pdo->prepare("INSERT INTO payments (payment_number, invoice_id, received_by, amount, payment_method, transaction_reference, status, provider_name, notes) VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?)");
-            $stmt->execute([$number,$invoiceId,$userId,$amount,$method,$reference ?: null,$provider ?: null,$notes ?: null]);
+            try {
+                $stmt = $pdo->prepare("INSERT INTO payments (payment_number, invoice_id, received_by, amount, payment_method, transaction_reference, status, provider_name, notes) VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?)");
+                $stmt->execute([$number, $invoiceId, $userId, $amount, $method, $reference, $provider ?: null, $notes ?: null]);
+            } catch (PDOException $e) {
+                if (str_contains($e->getMessage(), 'uq_payment_transaction_reference') || str_contains($e->getMessage(), 'Duplicate')) {
+                    throw new RuntimeException('That transaction reference is already recorded on another payment. Use a unique provider/bank reference.');
+                }
+                throw $e;
+            }
             $paymentId = (int)$pdo->lastInsertId();
             self::refreshInvoiceStatus($pdo, $invoiceId);
             self::audit($pdo, $userId, 'payment.recorded', 'payment', (string)$paymentId, 'Payment ' . $number . ' recorded against invoice ' . $invoiceId, null, ['amount' => $amount, 'method' => $method, 'status' => 'completed']);
             $pdo->commit();
             return $paymentId;
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             throw $e;
         }
     }
@@ -368,14 +443,15 @@ final class RentalOperations
                 if ($refund['requested_by'] !== null && $userId !== null && (int)$refund['requested_by'] === $userId) throw new RuntimeException('A staff member cannot approve their own refund request.');
                 $pdo->prepare("UPDATE payment_refunds SET status = 'approved', approved_by = ? WHERE refund_id = ?")->execute([$userId,$refundId]);
             } elseif ($newStatus === 'processed') {
-                if ($refund['status'] !== 'approved') throw new RuntimeException('A refund must be approved before it can be processed.');
+                if ($refund['status'] !== 'approved') {
+                    throw new RuntimeException('A refund must be approved before it can be processed.');
+                }
                 $pdo->prepare("UPDATE payment_refunds SET status = 'processed', processed_at = NOW() WHERE refund_id = ?")->execute([$refundId]);
-                $stmt = $pdo->prepare('SELECT COUNT(*) FROM payment_refunds WHERE payment_id = ? AND status <> \'rejected\'');
-                $stmt->execute([$refund['payment_id']]); $count = (int)$stmt->fetchColumn();
                 $stmt = $pdo->prepare("SELECT p.amount, COALESCE((SELECT SUM(pr.amount) FROM payment_refunds pr WHERE pr.payment_id = p.payment_id AND pr.status = 'processed'),0) AS refunded FROM payments p WHERE p.payment_id = ?");
-                $stmt->execute([$refund['payment_id']]); $p = $stmt->fetch(PDO::FETCH_ASSOC);
+                $stmt->execute([$refund['payment_id']]);
+                $p = $stmt->fetch(PDO::FETCH_ASSOC);
                 $pStatus = ((float)$p['refunded'] >= (float)$p['amount'] - 0.009) ? 'refunded' : 'partially_refunded';
-                $pdo->prepare('UPDATE payments SET status = ? WHERE payment_id = ?')->execute([$pStatus,$refund['payment_id']]);
+                $pdo->prepare('UPDATE payments SET status = ? WHERE payment_id = ?')->execute([$pStatus, $refund['payment_id']]);
                 self::refreshInvoiceStatus($pdo, (int)$refund['invoice_id']);
             } else {
                 if (!in_array($refund['status'], ['requested','approved'], true)) throw new RuntimeException('Only requested or approved refunds can be rejected or marked failed.');

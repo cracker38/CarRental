@@ -68,9 +68,23 @@ function ro_date(mixed $value, string $fallback = '—'): string
 
 function ro_status_badge(string $status): string
 {
-    $known = ['draft','issued','signed','active','completed','terminated','scheduled','overdue','returned','inspected','closed','cancelled','partially_paid','paid','void','refunded','pending','approved','processed','rejected','failed'];
+    $known = [
+        'draft', 'issued', 'signed', 'active', 'completed', 'terminated', 'scheduled', 'overdue',
+        'returned', 'inspected', 'closed', 'cancelled', 'partially_paid', 'paid', 'void', 'refunded',
+        'partially_refunded', 'pending', 'approved', 'processed', 'rejected', 'failed', 'requested',
+        'received', 'deduction', 'refund', 'adjustment',
+    ];
     $safe = in_array($status, $known, true) ? $status : 'pending';
     return '<span class="ro-status status-' . e($safe) . '">' . e(ucwords(str_replace('_', ' ', $safe))) . '</span>';
+}
+
+/** Suggested late-return fee from daily rate × overdue calendar days (staff can edit). */
+function ro_suggest_late_fee(float $dailyRate, int $lateDays): float
+{
+    if ($dailyRate <= 0 || $lateDays <= 0) {
+        return 0.0;
+    }
+    return round($dailyRate * $lateDays, 2);
 }
 
 function ro_post_guard(): void

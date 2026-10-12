@@ -27,3 +27,21 @@ WHERE r.role_name IN ('Rental Operations', 'System Administrator', 'Administrato
     'invoices.manage', 'payments.manage', 'refunds.manage', 'refunds.approve',
     'refunds.process', 'deposits.manage'
   );
+
+-- Operational roles that already exist in the base schema: fill gaps without removing prior grants.
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.role_name IN ('Business Manager', 'Rental Officer')
+  AND p.permission_key IN ('rental.view', 'agreements.manage', 'rentals.manage', 'inspections.manage', 'deposits.manage');
+
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.role_id, p.permission_id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.role_name IN ('Accountant/Cashier', 'Accountant', 'Cashier')
+  AND p.permission_key IN (
+    'rental.view', 'invoices.manage', 'payments.manage', 'refunds.manage',
+    'refunds.approve', 'refunds.process', 'deposits.manage'
+  );
