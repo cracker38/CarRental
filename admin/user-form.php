@@ -74,13 +74,16 @@ require BASE_PATH . '/includes/header.php';
         <div class="card crms-card">
             <div class="card-body">
                 <?php if (!empty($errors['form'])): ?><div class="alert alert-danger"><?= e($errors['form']) ?></div><?php endif; ?>
-                <form method="post">
+                <form method="post" action="<?= e(base_url('admin/user-form.php' . ($existing ? '?id=' . (int) $id : ''))) ?>">
                     <?= csrf_field() ?>
-                    <input type="hidden" name="user_id" value="<?= (int) $id ?>">
+                    <input type="hidden" name="form_action" value="save">
+                    <?php if ($existing): ?>
+                        <input type="hidden" name="user_id" value="<?= (int) $id ?>">
+                    <?php endif; ?>
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">First name</label>
-                            <input class="form-control <?= isset($errors['first_name']) ? 'is-invalid' : '' ?>" name="first_name" value="<?= e((string) $values['first_name']) ?>" required>
+                            <input class="form-control <?= isset($errors['first_name']) ? 'is-invalid' : '' ?>" name="first_name" value="<?= e((string) $values['first_name']) ?>" required autofocus>
                             <?php if (isset($errors['first_name'])): ?><div class="invalid-feedback"><?= e($errors['first_name']) ?></div><?php endif; ?>
                         </div>
                         <div class="col-md-6">

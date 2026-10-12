@@ -51,7 +51,9 @@ require BASE_PATH . '/includes/header.php';
             <p>You are managing <?= e((string) setting('business_name')) ?> in <?= e((string) setting('default_currency', 'RWF')) ?>. Last sign-in: <?= e(format_datetime($user['last_login_at'] ?? null, 'This session')) ?>.</p>
         </div>
         <?php if (hasPermission('users.manage')): ?>
-            <a class="btn btn-light fw-bold" href="<?= e(base_url('admin/user-form.php')) ?>"><i class="bi bi-plus-lg me-1"></i> New user</a>
+            <a class="btn btn-hero fw-bold" href="<?= e(base_url('admin/user-form.php')) ?>">
+                <i class="bi bi-plus-lg me-1"></i> New user
+            </a>
         <?php endif; ?>
     </div>
 </section>
@@ -96,6 +98,7 @@ require BASE_PATH . '/includes/header.php';
                 <h2 class="h5 mb-3">Quick actions</h2>
                 <div class="d-grid gap-2">
                     <?php if (hasPermission('users.manage')): ?>
+                        <a class="quick-link" href="<?= e(base_url('admin/user-form.php')) ?>"><i class="bi bi-person-plus"></i><span>Create a new user</span></a>
                         <a class="quick-link" href="<?= e(base_url('admin/users.php')) ?>"><i class="bi bi-people"></i><span>Manage staff accounts</span></a>
                     <?php endif; ?>
                     <?php if (hasPermission('roles.manage')): ?>

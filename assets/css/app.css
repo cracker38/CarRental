@@ -155,6 +155,19 @@ a:hover { color: var(--navy-2); }
     width: 220px; height: 220px;
     border-radius: 50%;
     background: rgba(226,177,60,.16);
+    pointer-events: none;
+}
+.dash-hero > * { position: relative; z-index: 1; }
+.btn-hero {
+    background: #fff;
+    color: #071827;
+    border: 0;
+    white-space: nowrap;
+    box-shadow: 0 8px 20px rgba(0,0,0,.18);
+}
+.btn-hero:hover, .btn-hero:focus {
+    background: #f4e7c2;
+    color: #071827;
 }
 .dash-hero h1 { font-weight: 800; letter-spacing: -.03em; }
 .dash-hero p { color: #d5e4ef; margin-bottom: 0; max-width: 620px; }
