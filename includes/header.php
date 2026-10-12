@@ -1,116 +1,62 @@
 <?php
 declare(strict_types=1);
-$user = current_user();
-$pageTitle = $pageTitle ?? setting('app_name', 'CRMS');
-$currentPage = $currentPage ?? '';
-$appName = (string) setting('app_name', 'CRMS');
-$businessName = (string) setting('business_name', 'Car Rental');
-$moduleExists = static function (string $relative): bool {
-    return is_file(BASE_PATH . '/' . $relative);
-};
+
+/**
+ * Shared CarRental page header.
+ * Expects app/bootstrap.php to have been loaded before this file.
+ */
+$pageTitle = isset($pageTitle) && is_string($pageTitle) && $pageTitle !== ''
+    ? $pageTitle
+    : 'Dashboard';
+$displayName = '';
+if (isset($user) && is_array($user)) {
+    $displayName = trim((string)($user['first_name'] ?? '') . ' ' . (string)($user['last_name'] ?? ''));
+}
+if ($displayName === '' && isset($_SESSION['user_name']) && is_string($_SESSION['user_name'])) {
+    $displayName = $_SESSION['user_name'];
+}
+if ($displayName === '') {
+    $displayName = 'Staff member';
+}
 ?>
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= e($pageTitle) ?> | <?= e($appName) ?></title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#172b5c">
+    <title><?= e($pageTitle) ?> | CarRental</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-    <link href="<?= e(base_url('assets/css/app.css')) ?>" rel="stylesheet">
+    <style>
+        :root { --cr-ink:#172033; --cr-muted:#6b7280; --cr-line:#e6eaf1; --cr-blue:#2457d6; --cr-navy:#152858; }
+        body { margin:0; color:var(--cr-ink); background:#f4f7fb; font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif; }
+        .cr-topbar { position:sticky; top:0; z-index:1000; background:rgba(255,255,255,.96); backdrop-filter:blur(14px); border-bottom:1px solid var(--cr-line); }
+        .cr-topbar-inner { min-height:72px; display:flex; align-items:center; justify-content:space-between; gap:20px; }
+        .cr-brand { display:flex; align-items:center; gap:11px; color:var(--cr-ink); text-decoration:none; font-weight:850; letter-spacing:-.04em; font-size:20px; }
+        .cr-brand-mark { display:grid; place-items:center; width:40px; height:40px; border-radius:12px; color:white; background:linear-gradient(145deg,#3776f6,#183c9d); box-shadow:0 7px 17px #2457d62b; font-size:14px; letter-spacing:-.03em; }
+        .cr-brand small { display:block; margin-top:-3px; color:var(--cr-muted); font-size:10px; font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
+        .cr-user-chip { display:flex; align-items:center; gap:10px; border:1px solid var(--cr-line); border-radius:999px; background:white; padding:7px 13px 7px 7px; font-size:13px; font-weight:700; }
+        .cr-avatar { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; color:#2457d6; background:#eaf0ff; font-weight:800; }
+        .cr-page-wrap { min-height:calc(100vh - 130px); }
+        .cr-footer { padding:22px 0; color:#778195; font-size:12px; }
+        @media(max-width:575px) { .cr-topbar-inner { min-height:64px; } .cr-brand { font-size:17px; } .cr-user-label { display:none; } }
+    </style>
+    <?php if (function_exists('ro_styles')) { ro_styles(); } ?>
 </head>
-<body class="crms-body">
-<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
-<div class="d-flex" id="app-shell">
-    <aside class="crms-sidebar" id="sidebar">
-        <div class="brand">
-            <span class="brand-mark"><i class="bi bi-car-front-fill"></i></span>
-            <div>
-                <strong><?= e($appName) ?></strong>
-                <small><?= e($businessName) ?></small>
-            </div>
-        </div>
-        <nav class="nav flex-column">
-            <a class="nav-link <?= $currentPage === 'dashboard' ? 'active' : '' ?>" href="<?= e(base_url('admin/dashboard.php')) ?>">
-                <i class="bi bi-grid-1x2"></i> Dashboard
+<body>
+<header class="cr-topbar">
+    <div class="container-fluid px-3 px-lg-4">
+        <div class="cr-topbar-inner">
+            <a class="cr-brand" href="<?= e(base_url('admin/rental-operations.php')) ?>">
+                <span class="cr-brand-mark">CR</span>
+                <span>CarRental<small>Management workspace</small></span>
             </a>
-            <?php if (hasPermission('users.manage')): ?>
-                <a class="nav-link <?= $currentPage === 'users' ? 'active' : '' ?>" href="<?= e(base_url('admin/users.php')) ?>">
-                    <i class="bi bi-people"></i> Users
-                </a>
-            <?php endif; ?>
-            <?php if (hasPermission('roles.manage')): ?>
-                <a class="nav-link <?= $currentPage === 'roles' ? 'active' : '' ?>" href="<?= e(base_url('admin/roles.php')) ?>">
-                    <i class="bi bi-shield-lock"></i> Roles
-                </a>
-            <?php endif; ?>
-            <?php if (hasPermission('audit.view')): ?>
-                <a class="nav-link <?= $currentPage === 'audit' ? 'active' : '' ?>" href="<?= e(base_url('admin/audit-logs.php')) ?>">
-                    <i class="bi bi-journal-text"></i> Audit logs
-                </a>
-            <?php endif; ?>
-            <?php if (hasPermission('settings.manage')): ?>
-                <a class="nav-link <?= $currentPage === 'settings' ? 'active' : '' ?>" href="<?= e(base_url('admin/settings.php')) ?>">
-                    <i class="bi bi-gear"></i> Settings
-                </a>
-            <?php endif; ?>
-            <?php
-            $opsLinks = [
-                ['vehicles.view', 'vehicles/index.php', 'bi-car-front', 'Vehicles'],
-                ['customers.view', 'customers/index.php', 'bi-person-vcard', 'Customers'],
-                ['reservations.view', 'reservations/index.php', 'bi-calendar-check', 'Reservations'],
-                ['rentals.manage', 'rentals/index.php', 'bi-key', 'Rentals'],
-                ['payments.view', 'payments/index.php', 'bi-cash-stack', 'Payments'],
-                ['maintenance.manage', 'maintenance/index.php', 'bi-wrench-adjustable', 'Maintenance'],
-                ['reports.view', 'reports/index.php', 'bi-graph-up', 'Reports'],
-            ];
-            $visibleOps = array_filter($opsLinks, static function (array $item) use ($moduleExists): bool {
-                return hasPermission($item[0]) && $moduleExists($item[1]);
-            });
-            ?>
-            <?php if ($visibleOps): ?>
-            <div class="nav-section">Operations</div>
-            <?php foreach ($visibleOps as $item): ?>
-                <a class="nav-link" href="<?= e(base_url($item[1])) ?>"><i class="bi <?= e($item[2]) ?>"></i> <?= e($item[3]) ?></a>
-            <?php endforeach; ?>
-            <?php endif; ?>
-        </nav>
-        <div class="sidebar-foot">
-            <?= e((string) setting('default_currency', 'RWF')) ?> · <?= e((string) setting('timezone', 'Africa/Kigali')) ?>
-        </div>
-    </aside>
-    <div class="crms-main">
-        <header class="crms-topbar">
-            <button class="btn btn-link d-lg-none p-0 text-dark" type="button" id="sidebarToggle" aria-label="Open menu">
-                <i class="bi bi-list fs-2"></i>
-            </button>
-            <div class="topbar-title d-none d-md-block"><?= e($pageTitle) ?></div>
-            <div class="topbar-meta d-none d-lg-block ms-2"><?= e(date('D, d M Y')) ?></div>
-            <div class="ms-auto d-flex align-items-center gap-2">
-                <?php if ($user): ?>
-                    <div class="dropdown">
-                        <button class="btn btn-link text-decoration-none text-dark p-0" data-bs-toggle="dropdown" aria-expanded="false">
-                            <div class="user-chip">
-                                <div class="avatar"><?= e(initials((string) $user['first_name'], (string) $user['last_name'])) ?></div>
-                                <div class="d-none d-sm-block text-start">
-                                    <strong><?= e($user['first_name'] . ' ' . $user['last_name']) ?></strong>
-                                    <small><?= e($user['role_name']) ?></small>
-                                </div>
-                                <i class="bi bi-chevron-down small text-secondary"></i>
-                            </div>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><h6 class="dropdown-header"><?= e($user['email']) ?></h6></li>
-                            <li><a class="dropdown-item" href="<?= e(base_url('admin/change-password.php')) ?>"><i class="bi bi-key me-2"></i>Change password</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="<?= e(base_url('logout.php')) ?>"><i class="bi bi-box-arrow-right me-2"></i>Sign out</a></li>
-                        </ul>
-                    </div>
-                <?php endif; ?>
+            <div class="cr-user-chip">
+                <span class="cr-avatar"><?= e(strtoupper(substr($displayName, 0, 1))) ?></span>
+                <span class="cr-user-label"><?= e($displayName) ?></span>
             </div>
-        </header>
-        <main class="crms-content">
-            <?php require BASE_PATH . '/includes/flash.php'; ?>
+        </div>
+    </div>
+</header>
+<main class="cr-page-wrap">
