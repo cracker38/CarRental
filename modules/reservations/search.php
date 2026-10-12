@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 date_default_timezone_set('Africa/Kigali');
@@ -74,10 +74,7 @@ if ($pickup !== '' || $return !== '') {
     }
 }
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Vehicle Availability</title></head>
-<body>
+<?php $pageTitle = 'Find vehicles'; require_once __DIR__ . '/../../includes/header.php'; ?>
 <h1>Find Available Vehicles</h1>
 
 <?php foreach ($errors as $err): ?><p style="color:red"><?= e($err) ?></p><?php endforeach; ?>
@@ -99,7 +96,7 @@ if ($pickup !== '' || $return !== '') {
 
 <?php if ($searched && !$errors): ?>
   <h2><?= count($vehicles) ?> vehicle(s) available (<?= (int)$days ?> day(s))</h2>
-  <table border="1" cellpadding="6">
+  <table>
     <tr><th>Vehicle</th><th>Category</th><th>Reg. no</th><th>Seats</th><th>Daily rate</th><th>Estimated total</th><th></th></tr>
     <?php foreach ($vehicles as $v): ?>
     <tr>
@@ -115,5 +112,5 @@ if ($pickup !== '' || $return !== '') {
     <?php if (!$vehicles): ?><tr><td colspan="7">No vehicles available for these dates.</td></tr><?php endif; ?>
   </table>
 <?php endif; ?>
-</body>
-</html>
+<?php require_once __DIR__ . '/../../includes/footer.php'; ?>
+

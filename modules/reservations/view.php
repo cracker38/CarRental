@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/availability.php';
@@ -136,10 +136,7 @@ $competing = (int)$s->fetchColumn();
 $flash = get_flash();
 $isError = $flash && str_starts_with($flash, 'Error:');
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Reservation <?= e($r['reservation_code']) ?></title></head>
-<body>
+<?php $pageTitle = 'Reservation ' . $r['reservation_code']; require_once __DIR__ . '/../../includes/header.php'; ?>
 <p><a href="index.php">&larr; Back to reservations</a></p>
 <h1>Reservation <?= e($r['reservation_code']) ?></h1>
 <?php if ($flash): ?><p style="color:<?= $isError ? 'red' : 'green' ?>"><?= e($flash) ?></p><?php endif; ?>
@@ -147,7 +144,7 @@ $isError = $flash && str_starts_with($flash, 'Error:');
   <p style="color:#b36b00">Note: <?= $competing ?> other pending request(s) overlap this vehicle and period. Only one can be confirmed.</p>
 <?php endif; ?>
 
-<table border="1" cellpadding="6">
+<table>
   <tr><th>Status</th><td><strong><?= e($r['status']) ?></strong></td></tr>
   <tr><th>Customer</th><td><a href="../customers/view.php?id=<?= (int)$r['customer_id'] ?>"><?= e($r['first_name'] . ' ' . $r['last_name']) ?></a> (<?= e($r['customer_code']) ?>) - <?= e($r['phone']) ?></td></tr>
   <tr><th>Vehicle</th><td><?= e($r['make'] . ' ' . $r['model'] . ' (' . $r['registration_no'] . ')') ?></td></tr>
@@ -189,5 +186,5 @@ $isError = $flash && str_starts_with($flash, 'Error:');
     <button type="submit">Cancel reservation</button>
   </form>
 <?php endif; ?>
-</body>
-</html>
+<?php require_once __DIR__ . '/../../includes/footer.php'; ?>
+

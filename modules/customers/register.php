@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 start_session();
@@ -73,10 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Register Customer</title></head>
-<body>
+<?php $pageTitle = 'Register customer'; require_once __DIR__ . '/../../includes/header.php'; ?>
 <h1>Register Customer</h1>
 
 <?php foreach ($errors as $err): ?>
@@ -105,5 +102,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <button type="submit">Register</button>
   <a href="index.php">Cancel</a>
 </form>
-</body>
-</html>
+<?php require_once __DIR__ . '/../../includes/footer.php'; ?>
+

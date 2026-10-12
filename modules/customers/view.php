@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 start_session();
@@ -35,10 +35,7 @@ $stmt->execute([$id]);
 $history = $stmt->fetchAll();
 $flash = get_flash();
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Customer <?= e($c['customer_code']) ?></title></head>
-<body>
+<?php $pageTitle = 'Customer ' . $c['customer_code']; require_once __DIR__ . '/../../includes/header.php'; ?>
 <p><a href="index.php">&larr; Back to customers</a></p>
 <h1><?= e($c['first_name'] . ' ' . $c['last_name']) ?> (<?= e($c['customer_code']) ?>)</h1>
 <?php if ($flash): ?><p style="color:green"><?= e($flash) ?></p><?php endif; ?>
@@ -46,7 +43,7 @@ $flash = get_flash();
   <p style="color:red"><strong>This customer is blacklisted and cannot make reservations.</strong></p>
 <?php endif; ?>
 
-<table border="1" cellpadding="6">
+<table>
   <tr><th>Status</th><td><?= e($c['status']) ?></td></tr>
   <tr><th>Phone</th><td><?= e($c['phone']) ?></td></tr>
   <tr><th>Email</th><td><?= e($c['email']) ?></td></tr>
@@ -75,7 +72,7 @@ $flash = get_flash();
 </form>
 
 <h2>Reservation history</h2>
-<table border="1" cellpadding="6">
+<table>
   <tr><th>Code</th><th>Vehicle</th><th>Pickup</th><th>Return</th><th>Amount</th><th>Status</th></tr>
   <?php foreach ($history as $r): ?>
   <tr>
@@ -89,5 +86,5 @@ $flash = get_flash();
   <?php endforeach; ?>
   <?php if (!$history): ?><tr><td colspan="6">No reservations yet.</td></tr><?php endif; ?>
 </table>
-</body>
-</html>
+<?php require_once __DIR__ . '/../../includes/footer.php'; ?>
+

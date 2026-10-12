@@ -1,9 +1,7 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
-require_once __DIR__ . '/../../includes/auth.php';
 start_session();
-require_permission($pdo, 'notifications.manage');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -24,17 +22,14 @@ $sql = "SELECT n.notification_id, n.subject, n.message, n.status, n.created_at,
 if ($filter === 'unread') $sql .= " WHERE n.status <> 'read'";
 $sql .= " ORDER BY n.created_at DESC LIMIT 100";
 $rows = $pdo->query($sql)->fetchAll();
+
+$pageTitle = 'Notifications';
+require_once __DIR__ . '/../../includes/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Notifications</title></head>
-<body>
 <h1>Notifications</h1>
-<p>
-  <a href="?show=unread">Unread</a> | <a href="?show=all">All</a> |
-  <a href="../reservations/index.php">Reservations</a>
-</p>
-<table border="1" cellpadding="6">
+<p><a href="?show=unread">Unread</a> | <a href="?show=all">All</a></p>
+
+<table>
   <tr><th>Date</th><th>Customer</th><th>Subject</th><th>Message</th><th>Status</th><th></th></tr>
   <?php foreach ($rows as $n): ?>
   <tr>
@@ -51,7 +46,7 @@ $rows = $pdo->query($sql)->fetchAll();
     <td><?= e($n['status']) ?></td>
     <td>
       <?php if ($n['status'] !== 'read'): ?>
-      <form method="post">
+      <form method="post" style="padding:0;box-shadow:none;margin:0;background:none">
         <?= csrf_field() ?>
         <input type="hidden" name="id" value="<?= (int)$n['notification_id'] ?>">
         <button>Mark read</button>
@@ -62,5 +57,4 @@ $rows = $pdo->query($sql)->fetchAll();
   <?php endforeach; ?>
   <?php if (!$rows): ?><tr><td colspan="6">No notifications.</td></tr><?php endif; ?>
 </table>
-</body>
-</html>
+<?php require_once __DIR__ . '/../../includes/footer.php'; ?>

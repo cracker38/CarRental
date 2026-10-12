@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/availability.php';
@@ -137,10 +137,7 @@ if (($p2 = parse_dt($pickup)) && ($r2 = parse_dt($return)) && $r2 > $p2) {
     $previewDays = max(1, (int)ceil(($r2->getTimestamp() - $p2->getTimestamp()) / 86400));
 }
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>New Reservation</title></head>
-<body>
+<?php $pageTitle = 'New reservation'; require_once __DIR__ . '/../../includes/header.php'; ?>
 <p><a href="search.php?pickup=<?= urlencode($pickup) ?>&return=<?= urlencode($return) ?>">&larr; Back to search</a></p>
 <h1>New Reservation</h1>
 
@@ -173,5 +170,5 @@ if (($p2 = parse_dt($pickup)) && ($r2 = parse_dt($return)) && $r2 > $p2) {
   <p><label>Notes <br><textarea name="customer_notes" rows="3" cols="40"><?= e($in['customer_notes'] ?? '') ?></textarea></label></p>
   <button type="submit">Create reservation</button>
 </form>
-</body>
-</html>
+<?php require_once __DIR__ . '/../../includes/footer.php'; ?>
+

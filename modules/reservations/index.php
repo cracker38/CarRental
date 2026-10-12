@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 start_session();
@@ -35,10 +35,7 @@ $stmt->execute($params);
 $rows = $stmt->fetchAll();
 $flash = get_flash();
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Reservations</title></head>
-<body>
+<?php $pageTitle = 'Reservations'; require_once __DIR__ . '/../../includes/header.php'; ?>
 <h1>Reservations</h1>
 <?php if ($flash): ?><p style="color:green"><?= e($flash) ?></p><?php endif; ?>
 
@@ -55,7 +52,7 @@ $flash = get_flash();
   <a href="../customers/index.php">Customers</a>
 </form>
 
-<table border="1" cellpadding="6">
+<table>
   <tr><th>Code</th><th>Customer</th><th>Vehicle</th><th>Pickup</th><th>Return</th><th>Amount</th><th>Status</th><th></th></tr>
   <?php foreach ($rows as $r): ?>
   <tr>
@@ -71,5 +68,5 @@ $flash = get_flash();
   <?php endforeach; ?>
   <?php if (!$rows): ?><tr><td colspan="8">No reservations found.</td></tr><?php endif; ?>
 </table>
-</body>
-</html>
+<?php require_once __DIR__ . '/../../includes/footer.php'; ?>
+

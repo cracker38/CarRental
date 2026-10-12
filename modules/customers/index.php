@@ -21,11 +21,10 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $customers = $stmt->fetchAll();
 $flash = get_flash();
+
+$pageTitle = 'Customers';
+require_once __DIR__ . '/../../includes/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Customers</title></head>
-<body>
 <h1>Customers</h1>
 <?php if ($flash): ?><p style="color:green"><?= e($flash) ?></p><?php endif; ?>
 
@@ -35,7 +34,7 @@ $flash = get_flash();
   <a href="register.php">+ New customer</a>
 </form>
 
-<table border="1" cellpadding="6">
+<table>
   <tr>
     <th>Code</th><th>Name</th><th>Phone</th><th>Email</th><th>Status</th><th>Actions</th>
   </tr>
@@ -56,5 +55,4 @@ $flash = get_flash();
   <tr><td colspan="6">No customers found.</td></tr>
   <?php endif; ?>
 </table>
-</body>
-</html>
+<?php require_once __DIR__ . '/../../includes/footer.php'; ?>
