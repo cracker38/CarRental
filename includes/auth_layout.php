@@ -19,29 +19,29 @@ $pageTitle = $pageTitle ?? 'Sign in';
 </head>
 <body class="auth-body">
 <div class="auth-grid">
-    <section class="auth-panel">
-        <div class="auth-card">
-            <div class="d-flex align-items-center gap-2 mb-4">
-                <span class="brand-mark" style="width:38px;height:38px;font-size:18px;"><i class="bi bi-car-front-fill"></i></span>
-                <div>
-                    <strong><?= e($appName) ?></strong>
-                    <div class="text-secondary small"><?= e($pageTitle) ?></div>
-                </div>
-            </div>
-            <?php require BASE_PATH . '/includes/flash.php'; ?>
-            <?= $authContent ?? '' ?>
-        </div>
-    </section>
     <section class="auth-hero">
         <div>
             <p class="eyebrow">Car Rental Management System</p>
             <h1><?= e($businessName) ?></h1>
-            <p>Secure staff access for fleet, reservations, rentals, payments, and administration — built for day-to-day operations.</p>
+            <p class="lead-copy">A secure workspace for fleet, reservations, rentals, payments, and administration — designed for daily operations.</p>
             <div class="hero-points">
-                <span><i class="bi bi-shield-check"></i> Role-based access control</span>
-                <span><i class="bi bi-clock-history"></i> Full audit trail</span>
+                <span><i class="bi bi-shield-check"></i> Role-based staff access</span>
+                <span><i class="bi bi-journal-check"></i> Complete audit trail</span>
                 <span><i class="bi bi-geo-alt"></i> <?= e((string) setting('business_country', 'Rwanda')) ?> · <?= e((string) setting('default_currency', 'RWF')) ?></span>
             </div>
+        </div>
+    </section>
+    <section class="auth-panel">
+        <div class="auth-card">
+            <div class="d-flex align-items-center gap-3 mb-4">
+                <span class="brand-mark"><i class="bi bi-car-front-fill"></i></span>
+                <div>
+                    <strong class="fs-5"><?= e($appName) ?></strong>
+                    <div class="text-secondary"><?= e($pageTitle) ?></div>
+                </div>
+            </div>
+            <?php require BASE_PATH . '/includes/flash.php'; ?>
+            <?= $authContent ?? '' ?>
         </div>
     </section>
 </div>

@@ -17,6 +17,7 @@ if (is_post()) {
 $pageTitle = 'Reset password';
 ob_start();
 ?>
+<h2 class="h4 mb-1">Reset your password</h2>
 <p class="text-secondary">Enter the email on your staff account. For security, we show the same message whether or not the account exists.</p>
 <form method="post">
     <?= csrf_field() ?>

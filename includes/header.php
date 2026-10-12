@@ -57,27 +57,25 @@ $moduleExists = static function (string $relative): bool {
                     <i class="bi bi-gear"></i> Settings
                 </a>
             <?php endif; ?>
+            <?php
+            $opsLinks = [
+                ['vehicles.view', 'vehicles/index.php', 'bi-car-front', 'Vehicles'],
+                ['customers.view', 'customers/index.php', 'bi-person-vcard', 'Customers'],
+                ['reservations.view', 'reservations/index.php', 'bi-calendar-check', 'Reservations'],
+                ['rentals.manage', 'rentals/index.php', 'bi-key', 'Rentals'],
+                ['payments.view', 'payments/index.php', 'bi-cash-stack', 'Payments'],
+                ['maintenance.manage', 'maintenance/index.php', 'bi-wrench-adjustable', 'Maintenance'],
+                ['reports.view', 'reports/index.php', 'bi-graph-up', 'Reports'],
+            ];
+            $visibleOps = array_filter($opsLinks, static function (array $item) use ($moduleExists): bool {
+                return hasPermission($item[0]) && $moduleExists($item[1]);
+            });
+            ?>
+            <?php if ($visibleOps): ?>
             <div class="nav-section">Operations</div>
-            <?php if (hasPermission('vehicles.view') && $moduleExists('vehicles/index.php')): ?>
-                <a class="nav-link" href="<?= e(base_url('vehicles/index.php')) ?>"><i class="bi bi-car-front"></i> Vehicles</a>
-            <?php endif; ?>
-            <?php if (hasPermission('customers.view') && $moduleExists('customers/index.php')): ?>
-                <a class="nav-link" href="<?= e(base_url('customers/index.php')) ?>"><i class="bi bi-person-vcard"></i> Customers</a>
-            <?php endif; ?>
-            <?php if (hasPermission('reservations.view') && $moduleExists('reservations/index.php')): ?>
-                <a class="nav-link" href="<?= e(base_url('reservations/index.php')) ?>"><i class="bi bi-calendar-check"></i> Reservations</a>
-            <?php endif; ?>
-            <?php if (hasPermission('rentals.manage') && $moduleExists('rentals/index.php')): ?>
-                <a class="nav-link" href="<?= e(base_url('rentals/index.php')) ?>"><i class="bi bi-key"></i> Rentals</a>
-            <?php endif; ?>
-            <?php if (hasPermission('payments.view') && $moduleExists('payments/index.php')): ?>
-                <a class="nav-link" href="<?= e(base_url('payments/index.php')) ?>"><i class="bi bi-cash-stack"></i> Payments</a>
-            <?php endif; ?>
-            <?php if (hasPermission('maintenance.manage') && $moduleExists('maintenance/index.php')): ?>
-                <a class="nav-link" href="<?= e(base_url('maintenance/index.php')) ?>"><i class="bi bi-wrench-adjustable"></i> Maintenance</a>
-            <?php endif; ?>
-            <?php if (hasPermission('reports.view') && $moduleExists('reports/index.php')): ?>
-                <a class="nav-link" href="<?= e(base_url('reports/index.php')) ?>"><i class="bi bi-graph-up"></i> Reports</a>
+            <?php foreach ($visibleOps as $item): ?>
+                <a class="nav-link" href="<?= e(base_url($item[1])) ?>"><i class="bi <?= e($item[2]) ?>"></i> <?= e($item[3]) ?></a>
+            <?php endforeach; ?>
             <?php endif; ?>
         </nav>
         <div class="sidebar-foot">
@@ -90,6 +88,7 @@ $moduleExists = static function (string $relative): bool {
                 <i class="bi bi-list fs-2"></i>
             </button>
             <div class="topbar-title d-none d-md-block"><?= e($pageTitle) ?></div>
+            <div class="topbar-meta d-none d-lg-block ms-2"><?= e(date('D, d M Y')) ?></div>
             <div class="ms-auto d-flex align-items-center gap-2">
                 <?php if ($user): ?>
                     <div class="dropdown">
