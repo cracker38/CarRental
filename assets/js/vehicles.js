@@ -28,20 +28,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 5000);
     });
 
+    // Image upload zone – select files; they are submitted with the form on Update
     const uploadZone = document.getElementById('uploadZone');
     const fileInput  = document.getElementById('imageFiles');
     const previewList = document.getElementById('imagePreviewList');
+
     if (uploadZone && fileInput) {
         uploadZone.addEventListener('click', () => fileInput.click());
-        ['dragenter','dragover'].forEach(evt => uploadZone.addEventListener(evt, e => { e.preventDefault(); uploadZone.classList.add('dragover'); }));
-        ['dragleave','drop'].forEach(evt => uploadZone.addEventListener(evt, e => { e.preventDefault(); uploadZone.classList.remove('dragover'); }));
-        uploadZone.addEventListener('drop', e => { fileInput.files = e.dataTransfer.files; renderPreviews(fileInput.files); });
+
+        ['dragenter', 'dragover'].forEach(evt => {
+            uploadZone.addEventListener(evt, e => {
+                e.preventDefault();
+                uploadZone.classList.add('dragover');
+            });
+        });
+        ['dragleave', 'drop'].forEach(evt => {
+            uploadZone.addEventListener(evt, e => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+            });
+        });
+
+        uploadZone.addEventListener('drop', e => {
+            const dt = e.dataTransfer;
+            if (!dt || !dt.files.length) return;
+            // Merge with any already selected files
+            const dataTransfer = new DataTransfer();
+            Array.from(fileInput.files || []).forEach(f => dataTransfer.items.add(f));
+            Array.from(dt.files).forEach(f => {
+                if (f.type.startsWith('image/')) dataTransfer.items.add(f);
+            });
+            fileInput.files = dataTransfer.files;
+            renderPreviews(fileInput.files);
+        });
+
         fileInput.addEventListener('change', () => renderPreviews(fileInput.files));
     }
+
     function renderPreviews(files) {
         if (!previewList) return;
         previewList.innerHTML = '';
-        Array.from(files).forEach(file => {
+        Array.from(files || []).forEach(file => {
             if (!file.type.startsWith('image/')) return;
             const reader = new FileReader();
             reader.onload = e => {
@@ -53,46 +80,4 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.readAsDataURL(file);
         });
     }
-});
-
-// Set primary image (AJAX)
-document.querySelectorAll('.btn-set-primary').forEach(btn => {
-    btn.addEventListener('click', async () => {
-        const imageId = btn.dataset.imageId;
-        const vehicleId = btn.dataset.vehicleId;
-        if (!confirm('Set this as the primary image?')) return;
-        try {
-            const res = await fetch((window.BASE_URL || '/CarRental') + '/api/set_primary_image.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image_id: imageId, vehicle_id: vehicleId })
-            });
-            const data = await res.json();
-            if (data.success) location.reload();
-            else alert(data.message || 'Failed');
-        } catch (e) {
-            alert('Network error');
-        }
-    });
-});
-
-// Delete image (AJAX)
-document.querySelectorAll('.btn-delete-image').forEach(btn => {
-    btn.addEventListener('click', async () => {
-        const imageId = btn.dataset.imageId;
-        const vehicleId = btn.dataset.vehicleId;
-        if (!confirm('Delete this image permanently?')) return;
-        try {
-            const res = await fetch((window.BASE_URL || '/CarRental') + '/api/delete_image.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image_id: imageId, vehicle_id: vehicleId })
-            });
-            const data = await res.json();
-            if (data.success) location.reload();
-            else alert(data.message || 'Failed');
-        } catch (e) {
-            alert('Network error');
-        }
-    });
 });

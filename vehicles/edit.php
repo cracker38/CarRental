@@ -51,32 +51,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $data['status'],$data['insurance_policy_no']?:null,$data['insurance_expiry_date']?:null,$data['inspection_expiry_date']?:null,
                     $data['description']?:null,$id
                 ]);
+            // New images replace existing ones (keep only the newly uploaded set)
             if (canManageVehicleImages() && !empty($_FILES['images']['name'][0])) {
-                $dir = __DIR__.'/../uploads/vehicles/';
-                if (!is_dir($dir)) mkdir($dir,0755,true);
-                $allowed = ['image/jpeg','image/png','image/webp','image/gif'];
-                $hasP = (bool)$pdo->query("SELECT 1 FROM vehicle_images WHERE vehicle_id=$id AND is_primary=1")->fetch();
+                $dir = __DIR__ . '/../uploads/vehicles/';
+                if (!is_dir($dir)) mkdir($dir, 0755, true);
+                $allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+                // Delete all current images for this vehicle
+                $old = $pdo->prepare('SELECT image_id, image_path FROM vehicle_images WHERE vehicle_id = ?');
+                $old->execute([$id]);
+                foreach ($old->fetchAll() as $row) {
+                    $path = $dir . $row['image_path'];
+                    if (is_file($path)) @unlink($path);
+                }
+                $pdo->prepare('DELETE FROM vehicle_images WHERE vehicle_id = ?')->execute([$id]);
+
+                // Save only the first valid uploaded image as primary (one image policy)
+                $saved = false;
                 foreach ($_FILES['images']['tmp_name'] as $i => $tmp) {
+                    if ($saved) break; // only one image
                     if ($_FILES['images']['error'][$i] !== UPLOAD_ERR_OK) continue;
                     if (!in_array(mime_content_type($tmp), $allowed, true)) continue;
                     $ext = strtolower(pathinfo($_FILES['images']['name'][$i], PATHINFO_EXTENSION));
-                    $fn = 'veh_'.$id.'_'.uniqid().'.'.$ext;
-                    if (move_uploaded_file($tmp, $dir.$fn)) {
-                        $pdo->prepare("INSERT INTO vehicle_images (vehicle_id,image_path,is_primary) VALUES (?,?,?)")->execute([$id,$fn,$hasP?0:1]);
-                        $hasP = true;
-                    }
-                }
-            }
-            if (canManageVehicleImages() && !empty($_POST['delete_images']) && is_array($_POST['delete_images'])) {
-                $sel = $pdo->prepare('SELECT image_path FROM vehicle_images WHERE image_id=? AND vehicle_id=?');
-                $del = $pdo->prepare('DELETE FROM vehicle_images WHERE image_id=? AND vehicle_id=?');
-                foreach ($_POST['delete_images'] as $iid) {
-                    $sel->execute([(int)$iid, $id]);
-                    $row = $sel->fetch();
-                    if ($row) {
-                        $p = __DIR__.'/../uploads/vehicles/'.$row['image_path'];
-                        if (is_file($p)) unlink($p);
-                        $del->execute([(int)$iid, $id]);
+                    $fn = 'veh_' . $id . '_' . uniqid() . '.' . $ext;
+                    if (move_uploaded_file($tmp, $dir . $fn)) {
+                        $pdo->prepare("INSERT INTO vehicle_images (vehicle_id, image_path, is_primary) VALUES (?, ?, 1)")
+                            ->execute([$id, $fn]);
+                        $saved = true;
                     }
                 }
             }
@@ -127,43 +128,36 @@ require __DIR__ . '/../includes/header.php';
     </div>
     <div class="form-group"><label>Description</label><textarea name="description" class="form-control" rows="2"><?= e($data['description']) ?></textarea></div>
     <?php if (canManageVehicleImages()): ?>
-    <h3 style="margin:1rem 0 .7rem;font-size:1.05rem">Vehicle Images <small style="font-weight:400;color:var(--gray-500)">(Manager only)</small></h3>
+    <h3 style="margin:1rem 0 .7rem;font-size:1.05rem">Vehicle Image <small style="font-weight:400;color:var(--gray-500)">(Manager only — one image)</small></h3>
+
     <?php if ($images): ?>
-    <div class="gallery" style="margin-bottom:1rem" id="imageGallery">
-    <?php foreach ($images as $img): ?>
-        <div class="img-manage-item" data-image-id="<?= (int)$img['image_id'] ?>">
-            <img src="<?= BASE_URL ?>/uploads/vehicles/<?= e($img['image_path']) ?>"
-                 class="<?= $img['is_primary'] ? 'primary' : '' ?>"
-                 alt="Vehicle">
-            <div style="display:flex;flex-direction:column;gap:.25rem;margin-top:.3rem">
-                <?php if ($img['is_primary']): ?>
-                    <span class="status status-available" style="text-align:center">Primary</span>
-                <?php else: ?>
-                    <button type="button" class="btn btn-outline btn-sm btn-set-primary"
-                            data-image-id="<?= (int)$img['image_id'] ?>"
-                            data-vehicle-id="<?= (int)$id ?>">
-                        <i class="fas fa-star"></i> Set primary
-                    </button>
-                <?php endif; ?>
-                <button type="button" class="btn btn-danger btn-sm btn-delete-image"
-                        data-image-id="<?= (int)$img['image_id'] ?>"
-                        data-vehicle-id="<?= (int)$id ?>">
-                    <i class="fas fa-trash"></i> Delete
-                </button>
-                <label style="font-size:.7rem"><input type="checkbox" name="delete_images[]" value="<?= (int)$img['image_id'] ?>"> Mark for delete on save</label>
-            </div>
+    <div class="gallery" style="margin-bottom:1rem">
+        <?php
+        // show primary first, or first image
+        $show = $images[0];
+        foreach ($images as $im) { if ($im['is_primary']) { $show = $im; break; } }
+        ?>
+        <div>
+            <img src="<?= BASE_URL ?>/uploads/vehicles/<?= e($show['image_path']) ?>" class="primary" alt="Current vehicle image">
+            <span class="status status-available" style="display:block;text-align:center;margin-top:.25rem">Current image</span>
         </div>
-    <?php endforeach; ?>
     </div>
+    <p style="font-size:.8rem;color:var(--gray-500);margin-bottom:.75rem">
+        Upload a new image below and click <strong>Update</strong> to replace the current one.
+    </p>
     <?php else: ?>
-        <p style="color:var(--gray-500);margin-bottom:.75rem;font-size:.9rem">No images yet.</p>
+        <p style="color:var(--gray-500);margin-bottom:.75rem;font-size:.9rem">No image yet. Drag a file below and click Update.</p>
     <?php endif; ?>
-    <div class="upload-zone" id="uploadZone"><i class="fas fa-cloud-upload-alt"></i><p>Click or drag new images (JPG, PNG, WebP)</p>
-        <input type="file" name="images[]" id="imageFiles" accept="image/*" multiple style="display:none"></div>
+
+    <div class="upload-zone" id="uploadZone">
+        <i class="fas fa-cloud-upload-alt"></i>
+        <p>Click or drag a new image (JPG, PNG, WebP) — replaces the current image</p>
+        <input type="file" name="images[]" id="imageFiles" accept="image/*" style="display:none">
+    </div>
     <div class="image-preview-list" id="imagePreviewList"></div>
     <?php else: ?>
     <div class="alert alert-error" style="background:#fef3c7;color:#92400e;border-color:#fde68a">
-        <i class="fas fa-info-circle"></i> Only <strong>Business Manager</strong> or <strong>Rental Officer</strong> can edit vehicle images.
+        <i class="fas fa-info-circle"></i> Only <strong>Business Manager</strong> or <strong>Rental Officer</strong> can manage vehicle images.
         <?php if ($images): ?>
         <div class="gallery" style="margin-top:.75rem">
             <?php foreach ($images as $img): ?>
@@ -173,7 +167,7 @@ require __DIR__ . '/../includes/header.php';
         <?php endif; ?>
     </div>
     <?php endif; ?>
-    <div class="form-actions">
+<div class="form-actions">
         <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Update</button>
         <a href="details.php?id=<?= $id ?>" class="btn btn-outline">Cancel</a>
     </div>

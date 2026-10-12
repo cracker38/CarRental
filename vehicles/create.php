@@ -40,16 +40,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $dir = __DIR__ . '/../uploads/vehicles/';
                 if (!is_dir($dir)) mkdir($dir, 0755, true);
                 $allowed = ['image/jpeg','image/png','image/webp','image/gif'];
-                $first = true;
-                foreach ($_FILES['images']['tmp_name'] as $i => $tmp) {
-                    if ($_FILES['images']['error'][$i] !== UPLOAD_ERR_OK) continue;
-                    if (!in_array(mime_content_type($tmp), $allowed, true)) continue;
-                    $ext = strtolower(pathinfo($_FILES['images']['name'][$i], PATHINFO_EXTENSION));
+                // One image only
+                $tmp = $_FILES['images']['tmp_name'][0];
+                if ($_FILES['images']['error'][0] === UPLOAD_ERR_OK && in_array(mime_content_type($tmp), $allowed, true)) {
+                    $ext = strtolower(pathinfo($_FILES['images']['name'][0], PATHINFO_EXTENSION));
                     $fn = 'veh_' . $vid . '_' . uniqid() . '.' . $ext;
                     if (move_uploaded_file($tmp, $dir . $fn)) {
-                        $pdo->prepare("INSERT INTO vehicle_images (vehicle_id,image_path,is_primary,uploaded_by) VALUES (?,?,?,?)")
-                            ->execute([$vid, $fn, $first?1:0, $_SESSION['user_id']??null]);
-                        $first = false;
+                        $pdo->prepare("INSERT INTO vehicle_images (vehicle_id,image_path,is_primary,uploaded_by) VALUES (?,?,1,?)")
+                            ->execute([$vid, $fn, $_SESSION['user_id'] ?? null]);
                     }
                 }
             }
@@ -120,7 +118,7 @@ require __DIR__ . '/../includes/header.php';
     <?php if (canManageVehicleImages()): ?>
     <h3 style="margin:1.2rem 0 .9rem;font-size:1.05rem">Images <small style="font-weight:400;color:var(--gray-500)">(Manager only)</small></h3>
     <div class="upload-zone" id="uploadZone"><i class="fas fa-cloud-upload-alt"></i><p>Click or drag images (JPG, PNG, WebP)</p>
-        <input type="file" name="images[]" id="imageFiles" accept="image/*" multiple style="display:none"></div>
+        <input type="file" name="images[]" id="imageFiles" accept="image/*" style="display:none"></div>
     <div class="image-preview-list" id="imagePreviewList"></div>
     <?php else: ?>
     <p style="color:var(--gray-500);font-size:.9rem;margin:1rem 0">Image upload is available only to Business Manager or Rental Officer.</p>

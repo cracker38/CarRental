@@ -73,7 +73,7 @@ body{display:flex;align-items:center;justify-content:center;min-height:100vh;bac
         </button>
     </form>
     <p style="text-align:center;margin-top:1.3rem;font-size:.85rem;color:var(--gray-500)">
-        Setup: <a href="<?= BASE_URL ?>/auth/setup_manager.php">Manager</a> 
+        Setup: <a href="<?= BASE_URL ?>/auth/setup_manager.php">Manager</a> · <a href="<?= BASE_URL ?>/auth/setup_admin.php">Admin</a>
     </p>
 </div>
 </body>
