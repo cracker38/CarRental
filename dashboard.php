@@ -1,14 +1,16 @@
-
 <?php
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/reservation_api.php';
 start_session();
 
 $count = fn(string $sql) => (int)$pdo->query($sql)->fetchColumn();
+$awaitingAgreement = count(reservations_ready_for_agreement($pdo));
 $stats = [
   ['Active customers',     $count("SELECT COUNT(*) FROM customers WHERE status = 'active'"), ''],
   ['Pending reservations', $count("SELECT COUNT(*) FROM reservations WHERE status = 'pending'"), 'amber'],
   ['Confirmed (upcoming)', $count("SELECT COUNT(*) FROM reservations WHERE status = 'confirmed' AND return_datetime > NOW()"), 'green'],
+  ['Awaiting agreement',   $awaitingAgreement, 'amber'],
   ['Vehicles in fleet',    $count("SELECT COUNT(*) FROM vehicles WHERE status <> 'inactive'"), 'red'],
 ];
 

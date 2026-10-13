@@ -18,7 +18,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $pdo->beginTransaction();
 
-        // Lock this reservation row
         $s = $pdo->prepare("SELECT * FROM reservations WHERE reservation_id = ? FOR UPDATE");
         $s->execute([$id]);
         $res = $s->fetch();
@@ -48,7 +47,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('The customer is no longer active, so this cannot be confirmed.');
             }
 
-            // Lock the vehicle row, then check overlaps
             $pdo->prepare("SELECT vehicle_id FROM vehicles WHERE vehicle_id = ? FOR UPDATE")
                 ->execute([$res['vehicle_id']]);
 
@@ -88,6 +86,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ((int)$s->fetchColumn() > 0) {
                 throw new RuntimeException('A rental already exists for this reservation, so it cannot be cancelled here.');
             }
+            $s = $pdo->prepare("SELECT COUNT(*) FROM rental_agreements WHERE reservation_id = ? AND status <> 'terminated'");
+            $s->execute([$id]);
+            if ((int)$s->fetchColumn() > 0) {
+                throw new RuntimeException('An agreement exists for this reservation. Terminate it first.');
+            }
             $pdo->prepare(
                 "UPDATE reservations SET status = 'cancelled', cancellation_reason = ?, cancelled_at = ?
                  WHERE reservation_id = ?"
@@ -124,7 +127,6 @@ $stmt->execute([$id]);
 $r = $stmt->fetch();
 if (!$r) { http_response_code(404); die('Reservation not found.'); }
 
-// Other pending requests competing for the same vehicle and period
 $s = $pdo->prepare(
     "SELECT COUNT(*) FROM reservations
      WHERE vehicle_id = ? AND status = 'pending' AND reservation_id <> ?
@@ -133,10 +135,16 @@ $s = $pdo->prepare(
 $s->execute([$r['vehicle_id'], $id, $r['return_datetime'], $r['pickup_datetime']]);
 $competing = (int)$s->fetchColumn();
 
+$s = $pdo->prepare("SELECT agreement_id, agreement_number, status FROM rental_agreements WHERE reservation_id = ?");
+$s->execute([$id]);
+$agreement = $s->fetch();
+
 $flash = get_flash();
 $isError = $flash && str_starts_with($flash, 'Error:');
+
+$pageTitle = 'Reservation ' . $r['reservation_code'];
+require_once __DIR__ . '/../../includes/header.php';
 ?>
-<?php $pageTitle = 'Reservation ' . $r['reservation_code']; require_once __DIR__ . '/../../includes/header.php'; ?>
 <p><a href="index.php">&larr; Back to reservations</a></p>
 <h1>Reservation <?= e($r['reservation_code']) ?></h1>
 <?php if ($flash): ?><p style="color:<?= $isError ? 'red' : 'green' ?>"><?= e($flash) ?></p><?php endif; ?>
@@ -145,7 +153,8 @@ $isError = $flash && str_starts_with($flash, 'Error:');
 <?php endif; ?>
 
 <table>
-  <tr><th>Status</th><td><strong><?= e($r['status']) ?></strong></td></tr>
+  <tr><th>Status</th><td><?= e($r['status']) ?></td></tr>
+  <tr><th>Agreement</th><td><?= $agreement ? e($agreement['agreement_number'] . ' (' . $agreement['status'] . ')') : ($r['status'] === 'confirmed' ? 'Not yet generated' : '-') ?></td></tr>
   <tr><th>Customer</th><td><a href="../customers/view.php?id=<?= (int)$r['customer_id'] ?>"><?= e($r['first_name'] . ' ' . $r['last_name']) ?></a> (<?= e($r['customer_code']) ?>) - <?= e($r['phone']) ?></td></tr>
   <tr><th>Vehicle</th><td><?= e($r['make'] . ' ' . $r['model'] . ' (' . $r['registration_no'] . ')') ?></td></tr>
   <tr><th>Pickup</th><td><?= e($r['pickup_datetime']) ?> <?= e($r['pickup_location']) ?></td></tr>
@@ -172,7 +181,7 @@ $isError = $flash && str_starts_with($flash, 'Error:');
   <form method="post" onsubmit="return confirm('Reject this reservation?');">
     <?= csrf_field() ?>
     <input type="hidden" name="action" value="reject">
-    <p><input name="reason" placeholder="Reason" maxlength="500" size="50" required></p>
+    <p><input name="reason" placeholder="Reason" maxlength="500" required></p>
     <button type="submit">Reject</button>
   </form>
 <?php endif; ?>
@@ -182,9 +191,8 @@ $isError = $flash && str_starts_with($flash, 'Error:');
   <form method="post" onsubmit="return confirm('Cancel this reservation?');">
     <?= csrf_field() ?>
     <input type="hidden" name="action" value="cancel">
-    <p><input name="reason" placeholder="Reason" maxlength="500" size="50" required></p>
+    <p><input name="reason" placeholder="Reason" maxlength="500" required></p>
     <button type="submit">Cancel reservation</button>
   </form>
 <?php endif; ?>
 <?php require_once __DIR__ . '/../../includes/footer.php'; ?>
-
