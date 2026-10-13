@@ -1,4 +1,4 @@
-@'
+
 <?php
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/functions.php';
@@ -90,4 +90,3 @@ require_once __DIR__ . '/includes/header.php';
   <?php else: ?><div class="empty">No notifications yet.</div><?php endif; ?>
 </div>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
-'@ | Set-Content -Path dashboard.php -Encoding UTF8

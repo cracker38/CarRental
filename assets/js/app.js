@@ -1,15 +1,16 @@
-﻿document.addEventListener('DOMContentLoaded', () => {
-  // 1. Mobile menu toggle
-  const toggle = document.querySelector('.nav-toggle');
-  const nav = document.getElementById('main-nav');
-  if (toggle && nav) {
-    toggle.addEventListener('click', () => {
-      const open = nav.classList.toggle('open');
-      toggle.setAttribute('aria-expanded', open);
-    });
-  }
+﻿
+document.addEventListener('DOMContentLoaded', () => {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('backdrop');
+  const menuBtn = document.getElementById('menuBtn');
+  const setMenu = open => {
+    if (!sidebar) return;
+    sidebar.classList.toggle('open', open);
+    if (backdrop) backdrop.classList.toggle('show', open);
+  };
+  if (menuBtn) menuBtn.addEventListener('click', () => setMenu(!sidebar.classList.contains('open')));
+  if (backdrop) backdrop.addEventListener('click', () => setMenu(false));
 
-  // 2. Make tables scroll sideways on small screens
   document.querySelectorAll('main table').forEach(t => {
     const wrap = document.createElement('div');
     wrap.className = 'table-wrap';
@@ -17,7 +18,6 @@
     wrap.appendChild(t);
   });
 
-  // 3. Turn status words into coloured badges
   const statuses = ['pending','confirmed','cancelled','rejected','completed','no_show',
                     'active','inactive','blacklisted'];
   document.querySelectorAll('main td').forEach(td => {
@@ -27,23 +27,18 @@
     }
   });
 
-  // 4. Style key links as buttons
   document.querySelectorAll('main a').forEach(a => {
     const t = a.textContent.trim();
-    if (t.startsWith('+') || t === 'Make a reservation' || t === 'Edit details') {
-      a.classList.add('btn');
-    }
+    if (t.startsWith('+') || t === 'Make a reservation' || t === 'Edit details') a.classList.add('btn');
     if (t === 'Cancel') a.classList.add('btn', 'btn-secondary');
   });
 
-  // 5. Fade out success messages after 6 seconds
   document.querySelectorAll('p[style*="color:green"]').forEach(p => {
     setTimeout(() => { p.classList.add('fade-out'); setTimeout(() => p.remove(), 700); }, 6000);
   });
 
-  // 6. Prevent double-submit (skip if the confirm() popup was cancelled)
-  document.querySelectorAll('form').forEach(f => {
-    f.addEventListener('submit', (ev) => {
+  document.querySelectorAll('main form').forEach(f => {
+    f.addEventListener('submit', ev => {
       if (ev.defaultPrevented) return;
       setTimeout(() => {
         f.querySelectorAll('button[type="submit"], button:not([type])').forEach(b => b.disabled = true);
@@ -51,7 +46,6 @@
     });
   });
 
-  // 7. Date helpers: block past pickup, return follows pickup
   const pickup = document.querySelector('input[name="pickup"]');
   const ret = document.querySelector('input[name="return"]');
   if (pickup && ret) {
