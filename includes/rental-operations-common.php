@@ -22,22 +22,38 @@ function ro_styles(): void
 
 function ro_nav(string $active): void
 {
-    $items = [
-        ['dashboard','Operations','admin/rental-operations.php','bi-grid-1x2','rental.view'],
-        ['agreements','Agreements','admin/agreements.php','bi-file-earmark-text','agreements.manage'],
-        ['rentals','Rentals','admin/rentals.php','bi-car-front','rentals.manage'],
-        ['invoices','Invoices','admin/invoices.php','bi-receipt-cutoff','invoices.manage'],
-        ['payments','Payments','admin/payments.php','bi-credit-card','payments.manage'],
-        ['refunds','Refunds','admin/refunds.php','bi-arrow-counterclockwise','refunds.manage'],
-        ['deposits','Deposits','admin/deposits.php','bi-safe2','deposits.manage'],
+    $groups = [
+        'Workflows' => [
+            ['agreements','Agreements','admin/agreements.php','bi-file-earmark-text','agreements.manage'],
+            ['rentals','Rentals','admin/rentals.php','bi-car-front','rentals.manage'],
+            ['inspections','Inspections','admin/inspections.php','bi-clipboard2-check','inspections.manage'],
+        ],
+        'Finance' => [
+            ['invoices','Invoices','admin/invoices.php','bi-receipt-cutoff','invoices.manage'],
+            ['payments','Payments','admin/payments.php','bi-credit-card','payments.manage'],
+            ['refunds','Refunds','admin/refunds.php','bi-arrow-counterclockwise','refunds.manage'],
+            ['deposits','Deposits','admin/deposits.php','bi-safe2','deposits.manage'],
+        ],
     ];
-    echo '<nav class="ro-nav" aria-label="Rental operations">';
-    foreach ($items as [$key,$label,$url,$icon,$permission]) {
-        if (hasPermission($permission)) {
-            echo '<a class="ro-nav-link' . ($active === $key ? ' active' : '') . '" href="' . e(base_url($url)) . '"><i class="bi ' . e($icon) . '"></i><span>' . e($label) . '</span></a>';
-        }
+    echo '<nav class="ro-nav" aria-label="Rental operations"><div class="ro-nav-inner">';
+    if (hasPermission('rental.view')) {
+        echo '<a class="ro-nav-link' . ($active === 'dashboard' ? ' active' : '') . '" href="' . e(base_url('admin/rental-operations.php')) . '"' . ($active === 'dashboard' ? ' aria-current="page"' : '') . '><i class="bi bi-grid-1x2"></i><span>Operations</span></a>';
     }
-    echo '</nav>';
+    foreach ($groups as $group => $items) {
+        $visibleItems = array_values(array_filter($items, static fn(array $item): bool => hasPermission($item[4])));
+        if (!$visibleItems) {
+            continue;
+        }
+        $groupActive = count(array_filter($visibleItems, static fn(array $item): bool => $active === $item[0])) > 0;
+        $menuId = 'ro-menu-' . strtolower($group);
+        echo '<div class="dropdown ro-nav-group"><button class="ro-nav-link ro-nav-menu' . ($groupActive ? ' active' : '') . '" type="button" id="' . e($menuId) . '" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi ' . ($group === 'Finance' ? 'bi-wallet2' : 'bi-kanban') . '"></i><span>' . e($group) . '</span><i class="bi bi-chevron-down ro-nav-caret"></i></button><ul class="dropdown-menu ro-nav-dropdown" aria-labelledby="' . e($menuId) . '">';
+        foreach ($visibleItems as [$key,$label,$url,$icon]) {
+            $isActive = $active === $key;
+            echo '<li><a class="dropdown-item' . ($isActive ? ' active' : '') . '" href="' . e(base_url($url)) . '"' . ($isActive ? ' aria-current="page"' : '') . '><i class="bi ' . e($icon) . '"></i><span>' . e($label) . '</span></a></li>';
+        }
+        echo '</ul></div>';
+    }
+    echo '</div></nav>';
 }
 
 function ro_flash(string $type, string $message): void

@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 /**
  * End-to-end smoke test for Rental Operations workflows.
  * Creates temporary rows inside a transaction and rolls everything back.
@@ -9,6 +14,7 @@ require dirname(__DIR__) . '/app/bootstrap.php';
 require_once BASE_PATH . '/app/RentalOperations.php';
 
 $pdo = Database::connection();
+$testFailed = false;
 $pdo->beginTransaction();
 
 try {
@@ -142,6 +148,7 @@ try {
 
     echo "\nSMOKE TEST PASSED\n";
 } catch (Throwable $e) {
+    $testFailed = true;
     echo "\nSMOKE TEST FAILED: " . $e->getMessage() . "\n";
     echo $e->getTraceAsString() . "\n";
 }
@@ -149,4 +156,8 @@ try {
 if ($pdo->inTransaction()) {
     $pdo->rollBack();
     echo "Transaction rolled back (no lasting data changes).\n";
+}
+
+if ($testFailed) {
+    exit(1);
 }

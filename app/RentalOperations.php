@@ -7,6 +7,42 @@ declare(strict_types=1);
  */
 final class RentalOperations
 {
+    private static int $savepointSequence = 0;
+
+    private static function beginScope(PDO $pdo): ?string
+    {
+        if (!$pdo->inTransaction()) {
+            $pdo->beginTransaction();
+            return null;
+        }
+        $savepoint = 'ro_scope_' . ++self::$savepointSequence;
+        $pdo->exec('SAVEPOINT ' . $savepoint);
+        return $savepoint;
+    }
+
+    private static function commitScope(PDO $pdo, ?string $savepoint): void
+    {
+        if ($savepoint === null) {
+            if ($pdo->inTransaction()) {
+                $pdo->commit();
+            }
+            return;
+        }
+        $pdo->exec('RELEASE SAVEPOINT ' . $savepoint);
+    }
+
+    private static function rollbackScope(PDO $pdo, ?string $savepoint): void
+    {
+        if ($savepoint === null) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return;
+        }
+        $pdo->exec('ROLLBACK TO SAVEPOINT ' . $savepoint);
+        $pdo->exec('RELEASE SAVEPOINT ' . $savepoint);
+    }
+
     public static function makeNumber(string $prefix, int $id): string
     {
         return $prefix . '-' . date('Ymd') . '-' . str_pad((string) $id, 6, '0', STR_PAD_LEFT);
@@ -36,7 +72,7 @@ final class RentalOperations
 
     public static function createAgreement(PDO $pdo, int $reservationId, ?int $userId): int
     {
-        $pdo->beginTransaction();
+        $savepoint = self::beginScope($pdo);
         try {
             $stmt = $pdo->prepare(
                 'SELECT r.*, c.first_name, c.last_name, v.make, v.model, v.registration_no
@@ -57,7 +93,7 @@ final class RentalOperations
             $existing->execute([$reservationId]);
             $existingId = $existing->fetchColumn();
             if ($existingId) {
-                $pdo->commit();
+                self::commitScope($pdo, $savepoint);
                 return (int) $existingId;
             }
             $terms = "RENTAL AGREEMENT\n\n" .
@@ -78,10 +114,10 @@ final class RentalOperations
             ]);
             $id = (int) $pdo->lastInsertId();
             self::audit($pdo, $userId, 'agreement.created', 'rental_agreement', (string)$id, 'Rental agreement ' . $number . ' generated from confirmed reservation ' . $reservation['reservation_code'], null, ['status' => 'draft', 'reservation_id' => $reservationId]);
-            $pdo->commit();
+            self::commitScope($pdo, $savepoint);
             return $id;
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($pdo->inTransaction()) self::rollbackScope($pdo, $savepoint);
             throw $e;
         }
     }
@@ -89,7 +125,7 @@ final class RentalOperations
     public static function updateAgreementStatus(PDO $pdo, int $agreementId, string $status, ?int $userId = null): void
     {
         $allowed = ['draft' => ['issued'], 'issued' => ['signed']];
-        $pdo->beginTransaction();
+        $savepoint = self::beginScope($pdo);
         try {
             $stmt = $pdo->prepare('SELECT status FROM rental_agreements WHERE agreement_id = ? FOR UPDATE');
             $stmt->execute([$agreementId]);
@@ -103,16 +139,16 @@ final class RentalOperations
                 : 'UPDATE rental_agreements SET status = ? WHERE agreement_id = ?';
             $pdo->prepare($sql)->execute([$status, $agreementId]);
             self::audit($pdo, $userId, 'agreement.status_changed', 'rental_agreement', (string)$agreementId, 'Agreement status changed from ' . $current . ' to ' . $status, ['status' => $current], ['status' => $status]);
-            $pdo->commit();
+            self::commitScope($pdo, $savepoint);
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($pdo->inTransaction()) self::rollbackScope($pdo, $savepoint);
             throw $e;
         }
     }
 
     public static function createRental(PDO $pdo, int $agreementId, ?int $userId): int
     {
-        $pdo->beginTransaction();
+        $savepoint = self::beginScope($pdo);
         try {
             $stmt = $pdo->prepare(
                 'SELECT a.*, r.reservation_code, r.status AS reservation_status, r.requested_driver_id,
@@ -128,7 +164,7 @@ final class RentalOperations
             $exists = $pdo->prepare('SELECT rental_id FROM rentals WHERE reservation_id = ? OR agreement_id = ?');
             $exists->execute([$row['reservation_id'], $agreementId]);
             $existingId = $exists->fetchColumn();
-            if ($existingId) { $pdo->commit(); return (int) $existingId; }
+            if ($existingId) { self::commitScope($pdo, $savepoint); return (int) $existingId; }
             $number = self::makeNumber('RNT', $agreementId);
             $insert = $pdo->prepare(
                 'INSERT INTO rentals
@@ -148,10 +184,10 @@ final class RentalOperations
             $id = (int) $pdo->lastInsertId();
             $pdo->prepare("UPDATE rental_agreements SET status = 'active' WHERE agreement_id = ?")->execute([$agreementId]);
             self::audit($pdo, $userId, 'rental.created', 'rental', (string)$id, 'Rental ' . $number . ' opened from signed agreement ' . $agreementId, null, ['status' => 'scheduled', 'reservation_id' => (int)$row['reservation_id'], 'base_amount' => $base]);
-            $pdo->commit();
+            self::commitScope($pdo, $savepoint);
             return $id;
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($pdo->inTransaction()) self::rollbackScope($pdo, $savepoint);
             throw $e;
         }
     }
@@ -159,7 +195,7 @@ final class RentalOperations
     public static function recordPickup(PDO $pdo, int $rentalId, int $mileage, float $fuel, array $inspection, ?int $userId): void
     {
         if ($mileage < 0 || $fuel < 0 || $fuel > 100) throw new RuntimeException('Enter valid pickup mileage and fuel percentage.');
-        $pdo->beginTransaction();
+        $savepoint = self::beginScope($pdo);
         try {
             $stmt = $pdo->prepare('SELECT r.*, v.current_mileage, v.status AS vehicle_status FROM rentals r JOIN vehicles v ON v.vehicle_id = r.vehicle_id WHERE r.rental_id = ? FOR UPDATE');
             $stmt->execute([$rentalId]);
@@ -178,9 +214,9 @@ final class RentalOperations
             $pdo->prepare("INSERT INTO vehicle_inspections (rental_id, vehicle_id, inspected_by, inspection_type, odometer_reading, fuel_level_percent, exterior_condition, interior_condition, cleanliness, damage_notes, other_notes) VALUES (?, ?, ?, 'pickup', ?, ?, ?, ?, ?, ?, ?)")
                 ->execute([$rentalId, $rental['vehicle_id'], $userId, $mileage, $fuel, $inspection['exterior_condition'] ?? 'good', $inspection['interior_condition'] ?? 'good', $inspection['cleanliness'] ?? 'clean', $inspection['damage_notes'] ?? null, $inspection['other_notes'] ?? null]);
             self::audit($pdo, $userId, 'rental.pickup_recorded', 'rental', (string)$rentalId, 'Vehicle pickup recorded', null, ['mileage' => $mileage, 'fuel_percent' => $fuel]);
-            $pdo->commit();
+            self::commitScope($pdo, $savepoint);
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($pdo->inTransaction()) self::rollbackScope($pdo, $savepoint);
             throw $e;
         }
     }
@@ -191,7 +227,7 @@ final class RentalOperations
         foreach (['extra_mileage_fee','late_return_fee','damage_fee','cleaning_fee','other_charges','discount_amount','tax_amount'] as $key) {
             if (!isset($charges[$key]) || !is_numeric($charges[$key]) || (float) $charges[$key] < 0) throw new RuntimeException('All charge amounts must be valid non-negative numbers.');
         }
-        $pdo->beginTransaction();
+        $savepoint = self::beginScope($pdo);
         try {
             $stmt = $pdo->prepare('SELECT r.*, v.current_mileage FROM rentals r JOIN vehicles v ON v.vehicle_id = r.vehicle_id WHERE r.rental_id = ? FOR UPDATE');
             $stmt->execute([$rentalId]);
@@ -205,7 +241,13 @@ final class RentalOperations
             $tax = (float)$charges['tax_amount'];
             if ($discount > $subtotal) throw new RuntimeException('Discount cannot exceed the rental subtotal.');
             $final = max(0, $subtotal - $discount + $tax);
-            $status = (($inspection['exterior_condition'] ?? '') === 'poor' || ($inspection['interior_condition'] ?? '') === 'poor' || ($inspection['cleanliness'] ?? '') === 'needs_cleaning' || trim((string)($inspection['damage_notes'] ?? '')) !== '') ? 'inspected' : 'returned';
+            $status = (($inspection['exterior_condition'] ?? '') === 'poor'
+                || ($inspection['interior_condition'] ?? '') === 'poor'
+                || ($inspection['cleanliness'] ?? '') === 'needs_cleaning'
+                || trim((string)($inspection['damage_notes'] ?? '')) !== ''
+                || (float)$charges['damage_fee'] > 0)
+                ? 'inspected'
+                : 'returned';
             $pdo->prepare("UPDATE rentals SET actual_return_datetime = NOW(), return_mileage = ?, return_fuel_percent = ?, extra_mileage_fee = ?, late_return_fee = ?, damage_fee = ?, cleaning_fee = ?, other_charges = ?, discount_amount = ?, tax_amount = ?, final_amount = ?, status = ?, return_notes = ?, handled_by = ? WHERE rental_id = ?")
                 ->execute([$mileage, $fuel, $charges['extra_mileage_fee'], $charges['late_return_fee'], $charges['damage_fee'], $charges['cleaning_fee'], $charges['other_charges'], $discount, $tax, $final, $status, $inspection['other_notes'] ?? null, $userId, $rentalId]);
             $pdo->prepare('UPDATE vehicles SET current_mileage = ?, fuel_level_percent = ?, status = ? WHERE vehicle_id = ?')
@@ -225,18 +267,18 @@ final class RentalOperations
                 }
             }
             self::audit($pdo, $userId, 'rental.return_recorded', 'rental', (string)$rentalId, 'Vehicle return recorded and rental charges recalculated', null, ['mileage' => $mileage, 'fuel_percent' => $fuel, 'extra_mileage_fee' => (float)$charges['extra_mileage_fee'], 'late_return_fee' => (float)$charges['late_return_fee'], 'damage_fee' => (float)$charges['damage_fee'], 'cleaning_fee' => (float)$charges['cleaning_fee'], 'other_charges' => (float)$charges['other_charges'], 'discount_amount' => $discount, 'tax_amount' => $tax, 'final_amount' => $final, 'status' => $status]);
-            $pdo->commit();
+            self::commitScope($pdo, $savepoint);
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($pdo->inTransaction()) self::rollbackScope($pdo, $savepoint);
             throw $e;
         }
     }
 
     public static function closeRental(PDO $pdo, int $rentalId, ?int $userId): void
     {
-        $pdo->beginTransaction();
+        $savepoint = self::beginScope($pdo);
         try {
-            $stmt = $pdo->prepare('SELECT rental_id, rental_number, status FROM rentals WHERE rental_id = ? FOR UPDATE');
+            $stmt = $pdo->prepare('SELECT rental_id, rental_number, reservation_id, status FROM rentals WHERE rental_id = ? FOR UPDATE');
             $stmt->execute([$rentalId]);
             $rental = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$rental) {
@@ -245,21 +287,25 @@ final class RentalOperations
             if (!in_array($rental['status'], ['returned', 'inspected'], true)) {
                 throw new RuntimeException('Only returned or inspected rentals can be closed.');
             }
-            $stmt = $pdo->prepare("SELECT invoice_id, total_amount, status FROM invoices WHERE rental_id = ? AND status <> 'void' ORDER BY invoice_id DESC LIMIT 1 FOR UPDATE");
+            $stmt = $pdo->prepare("SELECT invoice_id, status FROM invoices WHERE rental_id = ? AND status <> 'void' ORDER BY invoice_id DESC LIMIT 1 FOR UPDATE");
             $stmt->execute([$rentalId]);
             $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($invoice && !in_array($invoice['status'], ['paid', 'refunded'], true)) {
-                $balance = self::invoiceBalance($pdo, (int)$invoice['invoice_id']);
-                if ($balance['balance'] > 0.009) {
-                    throw new RuntimeException('Settle or void the outstanding invoice before closing this rental.');
-                }
+            if (!$invoice) {
+                throw new RuntimeException('Generate and issue an invoice before closing this rental.');
+            }
+            $balance = self::invoiceBalance($pdo, (int)$invoice['invoice_id']);
+            if ($balance['balance'] > 0.009) {
+                throw new RuntimeException('Settle or void the outstanding invoice before closing this rental.');
+            }
+            if (self::depositBalance($pdo, (int)$rental['reservation_id'], $rentalId, true) > 0.009) {
+                throw new RuntimeException('Return or deduct the remaining security deposit before closing this rental.');
             }
             $pdo->prepare("UPDATE rentals SET status = 'closed', handled_by = ? WHERE rental_id = ?")->execute([$userId, $rentalId]);
             self::audit($pdo, $userId, 'rental.closed', 'rental', (string)$rentalId, 'Rental ' . $rental['rental_number'] . ' closed', ['status' => $rental['status']], ['status' => 'closed']);
-            $pdo->commit();
+            self::commitScope($pdo, $savepoint);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
-                $pdo->rollBack();
+                self::rollbackScope($pdo, $savepoint);
             }
             throw $e;
         }
@@ -267,7 +313,7 @@ final class RentalOperations
 
     public static function createInvoiceForRental(PDO $pdo, int $rentalId, ?int $userId): int
     {
-        $pdo->beginTransaction();
+        $savepoint = self::beginScope($pdo);
         try {
             $stmt = $pdo->prepare('SELECT r.*, rs.reservation_code FROM rentals r JOIN reservations rs ON rs.reservation_id = r.reservation_id WHERE r.rental_id = ? FOR UPDATE');
             $stmt->execute([$rentalId]);
@@ -282,7 +328,7 @@ final class RentalOperations
             $existing = $pdo->prepare("SELECT invoice_id FROM invoices WHERE rental_id = ? AND status <> 'void' ORDER BY invoice_id DESC LIMIT 1");
             $existing->execute([$rentalId]);
             $existingId = $existing->fetchColumn();
-            if ($existingId) { $pdo->commit(); return (int)$existingId; }
+            if ($existingId) { self::commitScope($pdo, $savepoint); return (int)$existingId; }
             $items = [];
             $base = (float)$r['base_amount'];
             if ($base > 0) $items[] = ['rental', 'Vehicle rental', 1, $base];
@@ -311,10 +357,10 @@ final class RentalOperations
             if ($discount > 0) $insertItem->execute([$invoiceId,'discount','Agreed discount',1,$discount,0]);
             if ($tax > 0) $insertItem->execute([$invoiceId,'tax','Tax',1,$tax,$tax]);
             self::audit($pdo, $userId, 'invoice.created', 'invoice', (string)$invoiceId, 'Draft invoice ' . $invoiceNumber . ' generated from rental ' . $r['rental_number'], null, ['total_amount' => $total, 'currency' => $currency, 'status' => 'draft']);
-            $pdo->commit();
+            self::commitScope($pdo, $savepoint);
             return $invoiceId;
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($pdo->inTransaction()) self::rollbackScope($pdo, $savepoint);
             throw $e;
         }
     }
@@ -357,7 +403,7 @@ final class RentalOperations
         if (!is_finite($amount) || $amount <= 0) throw new RuntimeException('Payment amount must be greater than zero.');
         $methods = ['cash','bank_transfer','card','mobile_money','online','other'];
         if (!in_array($method, $methods, true)) throw new RuntimeException('Select a valid payment method.');
-        $pdo->beginTransaction();
+        $savepoint = self::beginScope($pdo);
         try {
             $data = self::invoiceBalance($pdo, $invoiceId, true);
             if (in_array($data['invoice']['status'], ['draft', 'void', 'refunded'], true)) {
@@ -393,11 +439,11 @@ final class RentalOperations
             $paymentId = (int)$pdo->lastInsertId();
             self::refreshInvoiceStatus($pdo, $invoiceId);
             self::audit($pdo, $userId, 'payment.recorded', 'payment', (string)$paymentId, 'Payment ' . $number . ' recorded against invoice ' . $invoiceId, null, ['amount' => $amount, 'method' => $method, 'status' => 'completed']);
-            $pdo->commit();
+            self::commitScope($pdo, $savepoint);
             return $paymentId;
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
-                $pdo->rollBack();
+                self::rollbackScope($pdo, $savepoint);
             }
             throw $e;
         }
@@ -408,7 +454,7 @@ final class RentalOperations
         if (!is_finite($amount) || $amount <= 0) throw new RuntimeException('Refund amount must be greater than zero.');
         if (trim($reason) === '') throw new RuntimeException('A refund reason is required.');
         if (!in_array($method, ['cash','bank_transfer','card','mobile_money','original_method','other'], true)) throw new RuntimeException('Select a valid refund method.');
-        $pdo->beginTransaction();
+        $savepoint = self::beginScope($pdo);
         try {
             $stmt = $pdo->prepare('SELECT p.*, i.status AS invoice_status FROM payments p JOIN invoices i ON i.invoice_id = p.invoice_id WHERE p.payment_id = ? FOR UPDATE');
             $stmt->execute([$paymentId]); $payment = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -422,10 +468,10 @@ final class RentalOperations
             $stmt->execute([$paymentId,$number,$amount,trim($reason),$method,$reference ?: null,$userId]);
             $id = (int)$pdo->lastInsertId();
             self::audit($pdo, $userId, 'refund.requested', 'payment_refund', (string)$id, 'Refund ' . $number . ' requested for payment ' . $paymentId, null, ['amount' => $amount, 'status' => 'requested']);
-            $pdo->commit();
+            self::commitScope($pdo, $savepoint);
             return $id;
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($pdo->inTransaction()) self::rollbackScope($pdo, $savepoint);
             throw $e;
         }
     }
@@ -433,7 +479,7 @@ final class RentalOperations
     public static function changeRefundStatus(PDO $pdo, int $refundId, string $newStatus, ?int $userId): void
     {
         if (!in_array($newStatus, ['approved','processed','rejected','failed'], true)) throw new RuntimeException('Invalid refund action.');
-        $pdo->beginTransaction();
+        $savepoint = self::beginScope($pdo);
         try {
             $stmt = $pdo->prepare('SELECT pr.*, p.invoice_id FROM payment_refunds pr JOIN payments p ON p.payment_id = pr.payment_id WHERE pr.refund_id = ? FOR UPDATE');
             $stmt->execute([$refundId]); $refund = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -458,9 +504,9 @@ final class RentalOperations
                 $pdo->prepare('UPDATE payment_refunds SET status = ? WHERE refund_id = ?')->execute([$newStatus,$refundId]);
             }
             self::audit($pdo, $userId, 'refund.' . $newStatus, 'payment_refund', (string)$refundId, 'Refund ' . $refund['refund_number'] . ' changed to ' . $newStatus, ['status' => $refund['status']], ['status' => $newStatus, 'amount' => (float)$refund['amount']]);
-            $pdo->commit();
+            self::commitScope($pdo, $savepoint);
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($pdo->inTransaction()) self::rollbackScope($pdo, $savepoint);
             throw $e;
         }
     }
@@ -498,7 +544,7 @@ final class RentalOperations
         $reservationId = !empty($data['reservation_id']) ? (int)$data['reservation_id'] : null;
         $rentalId = !empty($data['rental_id']) ? (int)$data['rental_id'] : null;
         if (!$reservationId && !$rentalId) throw new RuntimeException('Choose a reservation or rental.');
-        $pdo->beginTransaction();
+        $savepoint = self::beginScope($pdo);
         try {
             if ($rentalId) {
                 $stmt = $pdo->prepare('SELECT r.reservation_id, r.customer_id, a.security_deposit FROM rentals r JOIN rental_agreements a ON a.agreement_id = r.agreement_id WHERE r.rental_id = ? FOR UPDATE'); $stmt->execute([$rentalId]); $owner = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -509,13 +555,14 @@ final class RentalOperations
             if ($rentalId) $reservationId = (int)$owner['reservation_id'];
             $balance = self::depositBalance($pdo, $reservationId, $rentalId, true);
             if (in_array($type, ['deduction','refund','returned'], true) && $amount > $balance + 0.009) throw new RuntimeException('This transaction exceeds the deposit currently held.');
-            if ($type === 'received') {
+            if (in_array($type, ['received','adjustment'], true)) {
                 $depositTarget = (float)($owner['security_deposit'] ?? 0);
                 $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM deposit_transactions WHERE reservation_id = ? AND transaction_type = 'received' AND status = 'completed'");
                 $stmt->execute([$reservationId]);
                 $alreadyReceived = (float)$stmt->fetchColumn();
                 if ($depositTarget <= 0) throw new RuntimeException('No security deposit is configured on this reservation/agreement. Confirm the agreed deposit before recording a deposit receipt.');
-                if ($alreadyReceived + $amount > $depositTarget + 0.009) throw new RuntimeException('This receipt would exceed the agreed security deposit.');
+                $projectedBalance = $type === 'received' ? $alreadyReceived + $amount : $balance + $amount;
+                if ($projectedBalance > $depositTarget + 0.009) throw new RuntimeException('This transaction would exceed the agreed security deposit.');
             }
             $method = trim((string)($data['payment_method'] ?? ''));
             $allowedMethods = ['cash','bank_transfer','card','mobile_money','online','other'];
@@ -524,9 +571,9 @@ final class RentalOperations
             $stmt->execute([$reservationId,$rentalId,$owner['customer_id'],$type,$amount,$method ?: null,trim((string)($data['reference_number'] ?? '')) ?: null,trim((string)($data['reason'] ?? '')) ?: null,$userId]);
             $id = (int)$pdo->lastInsertId();
             self::audit($pdo, $userId, 'deposit.transaction_recorded', 'deposit_transaction', (string)$id, 'Security deposit transaction recorded', null, ['type' => $type, 'amount' => $amount, 'reservation_id' => $reservationId, 'rental_id' => $rentalId]);
-            $pdo->commit(); return $id;
+            self::commitScope($pdo, $savepoint); return $id;
         } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
+            if ($pdo->inTransaction()) self::rollbackScope($pdo, $savepoint);
             throw $e;
         }
     }

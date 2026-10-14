@@ -9,7 +9,7 @@ It targets the schema in the supplied SQL file (`carrental`) and uses these exis
 - `admin/rental-operations.php` — styled operations dashboard, work queue, latest rentals, receivables.
 - `admin/agreements.php` and `admin/agreement-view.php` — create agreement records from confirmed reservations, review/print terms, issue, record signed status, then open a rental.
 - `admin/rentals.php` and `admin/rental-view.php` — create a rental from a signed agreement; record pickup/return mileage, fuel, condition and charges; create return inspection; flag vehicles needing service.
-- `admin/inspection-form.php` — create follow-up inspections and upload JPG/PNG/WebP evidence images.
+- `admin/inspections.php` and `admin/inspection-form.php` — review inspection history, create follow-up inspections, and upload JPG/PNG/WebP evidence images.
 - `admin/invoices.php` and `admin/invoice-view.php` — create an itemized invoice from rental charges, add extra line items while still draft, issue invoices, review balances and payments, print invoice.
 - `admin/payment-form.php`, `admin/payments.php`, `admin/payment-receipt.php` — record full or partial payments, prevent payment above the outstanding balance, generate printable receipts.
 - `admin/refunds.php` — request refunds, reserve amounts across open requests, require approval before processing, prevent a requester from approving their own request, and recalculate invoice/payment balances after processing.
@@ -52,6 +52,7 @@ The pages intentionally use your existing authentication and layout. They are no
 - Payment amount must be positive and cannot exceed the current outstanding balance. A transaction reference, if provided, must be unique according to the schema.
 - A refund must be requested, approved, then processed. The requester cannot approve their own refund. Processed refunds affect net payment and invoice balances.
 - Deposit receipts cannot exceed the agreed security deposit. Deductions/refunds/returns cannot exceed the deposit currently held. “Adjustment” is treated as a positive credit; use “deduction” for a decrease.
+- A rental cannot be closed until it has a non-void invoice with no outstanding balance and its recorded deposit balance has been returned or deducted.
 - Card, online, bank-transfer and mobile-money entries are **accounting records only**. No gateway integration or real transfer is performed. Verify provider transactions and refunds independently before recording them as completed/processed.
 - Agreement and invoice print pages use browser print. They do not create cryptographically signed PDFs or verify physical/digital signatures.
 
@@ -72,6 +73,8 @@ The permission keys used by the module are:
 
 The SQL grants these to a role named `Rental Operations` and common administrator role names if those roles exist. If your administrator role has a different name, grant it the same permission keys through your role management page or by extending the SQL selection.
 
+The shared navigation groups related pages into workflow and finance menus, and displays only links allowed by the signed-in staff member's permissions. Sign-out is available from the profile menu and uses a CSRF-protected POST request.
+
 ## Important integration checks
 
 The PHP files pass CLI syntax checks, but this add-on has not been run against your actual application runtime because the existing `app/bootstrap.php`, permission helper implementation, and shared layout files were not included with the SQL schema. Before using it with real customer/financial data, test in a copy of the database and confirm:
@@ -81,3 +84,4 @@ The PHP files pass CLI syntax checks, but this add-on has not been run against y
 - Your permission manager reads the keys inserted by `install_permissions.sql`.
 - Your business has reviewed agreement terms, pricing rules, refund policy, deposit policy, tax rules and legal requirements.
 - Your PHP upload settings and file permissions allow the intended inspection images.
+- Diagnostic scripts in `scripts/` are restricted to CLI use and should be run only against a development/test database. The end-to-end smoke script wraps its records in a transaction and rolls them back.

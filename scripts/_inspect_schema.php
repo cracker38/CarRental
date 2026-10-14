@@ -1,11 +1,16 @@
 <?php
 declare(strict_types=1);
 
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 $files = glob(dirname(__DIR__) . '/{app,admin,includes}/*.php', GLOB_BRACE) ?: [];
 foreach ($files as $file) {
     $out = [];
     $code = 0;
-    exec('php -l ' . escapeshellarg($file) . ' 2>&1', $out, $code);
+    exec(escapeshellarg(PHP_BINARY) . ' -l ' . escapeshellarg($file) . ' 2>&1', $out, $code);
     if ($code !== 0) {
         echo "SYNTAX FAIL: $file\n" . implode("\n", $out) . "\n";
     }

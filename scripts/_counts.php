@@ -1,4 +1,9 @@
 <?php
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 $pdo = new PDO('mysql:host=127.0.0.1;dbname=carrental', 'root', '', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 foreach (['customers', 'vehicles', 'users', 'roles'] as $t) {
     echo "$t: " . $pdo->query("SELECT COUNT(*) FROM `$t`")->fetchColumn() . "\n";

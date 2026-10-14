@@ -10,28 +10,48 @@ $currentPage = 'dashboard';
 $pdo = Database::connection();
 RentalOperations::refreshOverdueRentals($pdo);
 
+$canManageAgreements = hasPermission('agreements.manage');
+$canManageRentals = hasPermission('rentals.manage');
+$canManageInvoices = hasPermission('invoices.manage');
+$canManageRefunds = hasPermission('refunds.manage');
 $stats = [
-    'agreements' => (int)$pdo->query("SELECT COUNT(*) FROM rental_agreements WHERE status NOT IN ('terminated')")->fetchColumn(),
-    'active_rentals' => (int)$pdo->query("SELECT COUNT(*) FROM rentals WHERE status IN ('active','overdue')")->fetchColumn(),
-    'overdue_rentals' => (int)$pdo->query("SELECT COUNT(*) FROM rentals WHERE status = 'overdue'")->fetchColumn(),
-    'open_invoices' => (int)$pdo->query("SELECT COUNT(*) FROM invoices WHERE status IN ('issued','partially_paid','overdue')")->fetchColumn(),
-    'outstanding' => (float)$pdo->query("SELECT COALESCE(SUM(outstanding_balance),0) FROM vw_invoice_balances WHERE status NOT IN ('void','paid','refunded')")->fetchColumn(),
-    'pending_reservations' => (int)$pdo->query("SELECT COUNT(*) FROM reservations WHERE status = 'confirmed' AND reservation_id NOT IN (SELECT reservation_id FROM rental_agreements)")->fetchColumn(),
-    'unbilled' => (int)$pdo->query("SELECT COUNT(*) FROM rentals r LEFT JOIN invoices i ON i.rental_id = r.rental_id AND i.status <> 'void' WHERE r.status IN ('returned','inspected') AND i.invoice_id IS NULL")->fetchColumn(),
-    'inspection_followups' => (int)$pdo->query("SELECT COUNT(*) FROM rentals WHERE status = 'inspected'")->fetchColumn(),
-    'refunds' => (int)$pdo->query("SELECT COUNT(*) FROM payment_refunds WHERE status IN ('requested','approved')")->fetchColumn(),
+    'agreements' => 0,
+    'active_rentals' => 0,
+    'overdue_rentals' => 0,
+    'open_invoices' => 0,
+    'outstanding' => 0.0,
+    'pending_reservations' => 0,
+    'unbilled' => 0,
+    'refunds' => 0,
 ];
 
-$recent = $pdo->query(
+if ($canManageAgreements) {
+    $stats['agreements'] = (int)$pdo->query("SELECT COUNT(*) FROM rental_agreements WHERE status NOT IN ('terminated')")->fetchColumn();
+    $stats['pending_reservations'] = (int)$pdo->query("SELECT COUNT(*) FROM reservations r LEFT JOIN rental_agreements a ON a.reservation_id = r.reservation_id WHERE r.status = 'confirmed' AND a.agreement_id IS NULL")->fetchColumn();
+}
+if ($canManageRentals) {
+    $stats['active_rentals'] = (int)$pdo->query("SELECT COUNT(*) FROM rentals WHERE status IN ('active','overdue')")->fetchColumn();
+    $stats['overdue_rentals'] = (int)$pdo->query("SELECT COUNT(*) FROM rentals WHERE status = 'overdue'")->fetchColumn();
+    $stats['unbilled'] = (int)$pdo->query("SELECT COUNT(*) FROM rentals r LEFT JOIN invoices i ON i.rental_id = r.rental_id AND i.status <> 'void' WHERE r.status IN ('returned','inspected') AND i.invoice_id IS NULL")->fetchColumn();
+}
+if ($canManageInvoices) {
+    $stats['open_invoices'] = (int)$pdo->query("SELECT COUNT(*) FROM invoices WHERE status IN ('issued','partially_paid','overdue')")->fetchColumn();
+    $stats['outstanding'] = (float)$pdo->query("SELECT COALESCE(SUM(outstanding_balance),0) FROM vw_invoice_balances WHERE status NOT IN ('void','paid','refunded')")->fetchColumn();
+}
+if ($canManageRefunds) {
+    $stats['refunds'] = (int)$pdo->query("SELECT COUNT(*) FROM payment_refunds WHERE status IN ('requested','approved')")->fetchColumn();
+}
+
+$recent = $canManageRentals ? $pdo->query(
     "SELECT r.rental_id, r.rental_number, r.status, r.expected_return_datetime, c.first_name, c.last_name, v.make, v.model, v.registration_no
      FROM rentals r
      JOIN customers c ON c.customer_id = r.customer_id
      JOIN vehicles v ON v.vehicle_id = r.vehicle_id
      ORDER BY FIELD(r.status,'overdue','active','scheduled','inspected','returned','closed','cancelled'), r.expected_return_datetime ASC
      LIMIT 8"
-)->fetchAll(PDO::FETCH_ASSOC);
+)->fetchAll(PDO::FETCH_ASSOC) : [];
 
-$due = $pdo->query(
+$due = $canManageInvoices ? $pdo->query(
     "SELECT i.invoice_id, i.invoice_number, i.due_date, i.total_amount, b.outstanding_balance, c.first_name, c.last_name
      FROM invoices i
      JOIN customers c ON c.customer_id = i.customer_id
@@ -39,7 +59,7 @@ $due = $pdo->query(
      WHERE i.status IN ('issued','partially_paid','overdue')
      ORDER BY i.due_date IS NULL, i.due_date ASC
      LIMIT 5"
-)->fetchAll(PDO::FETCH_ASSOC);
+)->fetchAll(PDO::FETCH_ASSOC) : [];
 
 require BASE_PATH . '/includes/header.php';
 require BASE_PATH . '/includes/rental-operations-nav.php';
@@ -69,18 +89,23 @@ require BASE_PATH . '/includes/rental-operations-nav.php';
     </div>
 
     <div class="ro-kpi-grid">
+        <?php if ($canManageAgreements): ?>
         <a class="ro-kpi kpi-violet" href="<?= e(base_url('admin/agreements.php')) ?>">
             <span class="ro-kpi-icon"><i class="bi bi-file-earmark-check"></i></span>
             <span class="ro-kpi-label">Agreements</span>
             <strong><?= number_format($stats['agreements']) ?></strong>
             <small><?= (int)$stats['pending_reservations'] ?> reservation(s) waiting</small>
         </a>
+        <?php endif; ?>
+        <?php if ($canManageRentals): ?>
         <a class="ro-kpi kpi-blue" href="<?= e(base_url('admin/rentals.php')) ?>">
             <span class="ro-kpi-icon"><i class="bi bi-car-front"></i></span>
             <span class="ro-kpi-label">Active rentals</span>
             <strong><?= number_format($stats['active_rentals']) ?></strong>
             <small><?= (int)$stats['overdue_rentals'] ?> overdue</small>
         </a>
+        <?php endif; ?>
+        <?php if ($canManageInvoices): ?>
         <a class="ro-kpi kpi-amber" href="<?= e(base_url('admin/invoices.php')) ?>">
             <span class="ro-kpi-icon"><i class="bi bi-receipt-cutoff"></i></span>
             <span class="ro-kpi-label">Open invoices</span>
@@ -93,6 +118,7 @@ require BASE_PATH . '/includes/rental-operations-nav.php';
             <strong class="ro-kpi-money"><?= ro_money($stats['outstanding']) ?></strong>
             <small>Net of processed refunds</small>
         </a>
+        <?php endif; ?>
     </div>
 
     <div class="ro-content-grid">
@@ -102,40 +128,52 @@ require BASE_PATH . '/includes/rental-operations-nav.php';
                 <span class="ro-panel-icon"><i class="bi bi-lightning-charge"></i></span>
             </div>
             <div class="ro-action-list">
+                <?php if ($canManageAgreements): ?>
                 <a href="<?= e(base_url('admin/agreements.php')) ?>" class="ro-action-row">
                     <span class="ro-action-icon action-purple"><i class="bi bi-file-earmark-plus"></i></span>
                     <span class="ro-action-copy"><strong>Generate rental agreements</strong><small>Confirmed reservations ready for paperwork</small></span>
                     <span class="ro-action-count"><?= (int)$stats['pending_reservations'] ?></span>
                     <i class="bi bi-chevron-right ro-chevron"></i>
                 </a>
+                <?php endif; ?>
+                <?php if ($canManageRentals): ?>
                 <a href="<?= e(base_url('admin/rentals.php')) ?>" class="ro-action-row">
                     <span class="ro-action-icon action-blue"><i class="bi bi-key"></i></span>
                     <span class="ro-action-copy"><strong>Pickup and return desk</strong><small>Capture mileage, fuel and vehicle condition</small></span>
                     <?php if ($stats['overdue_rentals']): ?><span class="ro-action-count count-alert"><?= (int)$stats['overdue_rentals'] ?></span><?php endif; ?>
                     <i class="bi bi-chevron-right ro-chevron"></i>
                 </a>
+                <?php endif; ?>
+                <?php if ($canManageInvoices): ?>
                 <a href="<?= e(base_url('admin/invoices.php')) ?>" class="ro-action-row">
                     <span class="ro-action-icon action-orange"><i class="bi bi-receipt"></i></span>
                     <span class="ro-action-copy"><strong>Unbilled returned rentals</strong><small>Generate itemized invoices from final charges</small></span>
                     <span class="ro-action-count <?= $stats['unbilled'] ? 'count-alert' : '' ?>"><?= (int)$stats['unbilled'] ?></span>
                     <i class="bi bi-chevron-right ro-chevron"></i>
                 </a>
+                <?php endif; ?>
+                <?php if ($canManageRefunds): ?>
                 <a href="<?= e(base_url('admin/refunds.php')) ?>" class="ro-action-row">
                     <span class="ro-action-icon action-orange"><i class="bi bi-arrow-counterclockwise"></i></span>
                     <span class="ro-action-copy"><strong>Refund approvals</strong><small>Review requests before processing</small></span>
                     <span class="ro-action-count <?= $stats['refunds'] ? 'count-alert' : '' ?>"><?= (int)$stats['refunds'] ?></span>
                     <i class="bi bi-chevron-right ro-chevron"></i>
                 </a>
+                <?php endif; ?>
+                <?php if (hasPermission('deposits.manage')): ?>
                 <a href="<?= e(base_url('admin/deposits.php')) ?>" class="ro-action-row">
                     <span class="ro-action-icon action-green"><i class="bi bi-safe2"></i></span>
                     <span class="ro-action-copy"><strong>Security deposits</strong><small>Record receipts, deductions and returns</small></span>
-                    <?php if ($stats['inspection_followups']): ?><span class="ro-action-count"><?= (int)$stats['inspection_followups'] ?></span><?php endif; ?>
                     <i class="bi bi-chevron-right ro-chevron"></i>
                 </a>
+                <?php endif; ?>
+                <?php if (!$canManageAgreements && !$canManageRentals && !$canManageInvoices && !$canManageRefunds && !hasPermission('deposits.manage')): ?>
+                    <div class="ro-empty compact"><strong>No workflow access</strong><p>Your account can view this dashboard but has no workflow permissions assigned.</p></div>
+                <?php endif; ?>
             </div>
         </section>
 
-        <section class="ro-panel">
+        <?php if ($canManageRentals): ?><section class="ro-panel">
             <div class="ro-panel-head">
                 <div><span class="ro-kicker">FLEET ACTIVITY</span><h2>Priority rentals</h2></div>
                 <a class="ro-text-link" href="<?= e(base_url('admin/rentals.php')) ?>">View all <i class="bi bi-arrow-up-right"></i></a>
@@ -164,8 +202,9 @@ require BASE_PATH . '/includes/rental-operations-nav.php';
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
-        </section>
+        </section><?php endif; ?>
 
+        <?php if ($canManageInvoices): ?>
         <section class="ro-panel ro-panel-wide">
             <div class="ro-panel-head">
                 <div><span class="ro-kicker">RECEIVABLES</span><h2>Invoices to follow up</h2></div>
@@ -206,6 +245,7 @@ require BASE_PATH . '/includes/rental-operations-nav.php';
                 </div>
             <?php endif; ?>
         </section>
+        <?php endif; ?>
     </div>
 
     <p class="ro-footnote">

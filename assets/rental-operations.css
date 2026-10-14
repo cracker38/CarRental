@@ -23,3 +23,18 @@
 .ro-inline-issue-form{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.ro-inline-issue-form label{white-space:nowrap}.ro-inline-issue-form .form-control{max-width:180px;border-radius:9px;border-color:#dfe5ef;font-size:.8rem}.ro-type-pill{display:inline-flex;align-items:center;padding:5px 8px;border-radius:8px;background:#eef1fb;color:#58668b;font-size:.68rem;font-weight:800;white-space:nowrap}
 .ro-charge-breakdown{display:flex;flex-direction:column;gap:0;max-width:420px;margin-top:4px}.ro-charge-breakdown>div{display:flex;justify-content:space-between;gap:18px;padding:10px 0;border-bottom:1px solid #eef1f6;font-size:.82rem;color:#718098}.ro-charge-breakdown strong{color:var(--ro-ink);font-weight:800;white-space:nowrap}.ro-charge-breakdown .total-line{padding-top:14px;border-bottom:0;color:var(--ro-ink);font-size:.92rem}.ro-charge-breakdown .total-line strong{color:#4f49bb;font-size:1.05rem}
 .status-partially_refunded{background:#e8f1ff;color:#2f67bd}
+
+.ro-nav{position:relative;z-index:20;padding:9px clamp(16px,3vw,42px);overflow:visible}
+.ro-nav-inner{display:flex;align-items:center;gap:7px;flex-wrap:wrap;width:100%;max-width:1516px;margin:0 auto}
+.ro-nav-group{position:relative}
+.ro-nav-menu{border:0;background:transparent;font:inherit;cursor:pointer}
+.ro-nav-menu.active{border:0}
+.ro-nav-caret{font-size:.65rem;margin-left:1px;transition:transform .15s ease}
+.ro-nav-menu[aria-expanded=true] .ro-nav-caret{transform:rotate(180deg)}
+.ro-nav-dropdown{min-width:205px;padding:7px;border:1px solid var(--ro-line);border-radius:13px;box-shadow:0 14px 34px rgba(28,43,75,.13)}
+.ro-nav-dropdown .dropdown-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;color:#5f6c84;font-size:.82rem;font-weight:650}
+.ro-nav-dropdown .dropdown-item i{width:17px;font-size:.95rem}
+.ro-nav-dropdown .dropdown-item:hover,.ro-nav-dropdown .dropdown-item:focus{background:#f4f5fb;color:#343a63}
+.ro-nav-dropdown .dropdown-item.active{background:#f0edff;color:#6252c4}
+.ro-nav-link:focus-visible,.ro-nav-dropdown .dropdown-item:focus-visible{outline:3px solid rgba(93,80,200,.25);outline-offset:2px}
+@media(max-width:700px){.ro-nav{padding:9px 12px}.ro-nav-inner{gap:4px}.ro-nav-link{padding:9px 10px;font-size:.77rem;gap:6px}.ro-nav-dropdown{min-width:190px}}

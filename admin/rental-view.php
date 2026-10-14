@@ -72,8 +72,10 @@ $inspections = $insp->fetchAll(PDO::FETCH_ASSOC);
 $inv = $pdo->prepare("SELECT invoice_id, invoice_number, status, total_amount FROM invoices WHERE rental_id = ? AND status <> 'void' ORDER BY invoice_id DESC LIMIT 1");
 $inv->execute([$id]);
 $invoice = $inv->fetch(PDO::FETCH_ASSOC);
+$invoiceBalance = $invoice ? RentalOperations::invoiceBalance($pdo, (int)$invoice['invoice_id']) : null;
 
 $depositHeld = RentalOperations::depositBalance($pdo, (int)$r['reservation_id'], $id);
+$canCloseRental = $invoiceBalance !== null && $invoiceBalance['balance'] <= 0.009 && $depositHeld <= 0.009;
 
 $lateSeconds = max(0, (strtotime((string)$r['actual_return_datetime']) ?: time()) - (strtotime((string)$r['expected_return_datetime']) ?: time()));
 $lateDays = $r['actual_return_datetime']
@@ -341,7 +343,7 @@ require BASE_PATH . '/includes/rental-operations-nav.php';
                 <?php endforeach; ?>
                 <div class="total-line"><span>Final amount</span><strong><?= ro_money($r['final_amount']) ?></strong></div>
             </div>
-            <p class="text-secondary mt-3 mb-3">The pickup/return workflow is complete. Generate an itemized invoice, settle payments, then close the rental.</p>
+            <p class="text-secondary mt-3 mb-3">The pickup/return workflow is complete. Generate and settle the invoice, then return or deduct the remaining deposit before closing the rental.</p>
             <div class="ro-workflow-actions">
                 <?php if (hasPermission('invoices.manage')): ?>
                     <?php if ($invoice): ?>
@@ -361,13 +363,15 @@ require BASE_PATH . '/includes/rental-operations-nav.php';
                         <i class="bi bi-safe2 me-1"></i> Manage deposit (<?= ro_money($depositHeld) ?> held)
                     </a>
                 <?php endif; ?>
-                <?php if (in_array($r['status'], ['returned', 'inspected'], true)): ?>
+                <?php if ($canCloseRental && in_array($r['status'], ['returned', 'inspected'], true)): ?>
                     <form method="post" onsubmit="return confirm('Close this rental after billing and deposit handling are complete?');">
                         <?= csrf_field() ?>
                         <input type="hidden" name="action" value="close">
                         <input type="hidden" name="rental_id" value="<?= $id ?>">
                         <button class="btn ro-btn-outline" type="submit"><i class="bi bi-lock me-1"></i> Close rental</button>
                     </form>
+                <?php elseif (in_array($r['status'], ['returned', 'inspected'], true)): ?>
+                    <span class="ro-note"><i class="bi bi-info-circle"></i> Closing is available after an invoice is fully settled and the held deposit has been returned or deducted.</span>
                 <?php endif; ?>
             </div>
             <?php if ($r['status'] === 'inspected'): ?>

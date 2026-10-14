@@ -1,13 +1,106 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__) . '/app/bootstrap.php';
-$user=requireLogin();require_once BASE_PATH.'/includes/rental-operations-common.php';ro_require_permission('invoices.manage');$pdo=Database::connection();$id=(int)($_GET['id']??$_POST['invoice_id']??0);
-if(is_post()){
- ro_post_guard();try{$action=(string)($_POST['action']??'');
-  if($action==='issue'){$dueDate=trim((string)($_POST['due_date']??''));if($dueDate!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$dueDate))throw new RuntimeException('Enter a valid invoice due date.');$pdo->beginTransaction();$stmt=$pdo->prepare("UPDATE invoices SET status='issued', issue_date=CURDATE(), due_date=? WHERE invoice_id=? AND status='draft'");$stmt->execute([$dueDate?:null,$id]);if(!$stmt->rowCount()){throw new RuntimeException('Only a draft invoice can be issued.');}RentalOperations::refreshInvoiceStatus($pdo,$id);RentalOperations::logEvent($pdo,isset($user['user_id'])?(int)$user['user_id']:null,'invoice.issued','invoice',(string)$id,'Invoice issued to customer', ['status'=>'draft'], ['status'=>'issued','due_date'=>$dueDate?:null]);$pdo->commit();ro_flash('success','Invoice issued. You can now record payments.');}
-  elseif($action==='add_item'){$stmt=$pdo->prepare('SELECT status,discount_amount,tax_amount FROM invoices WHERE invoice_id=?');$stmt->execute([$id]);$inv=$stmt->fetch(PDO::FETCH_ASSOC);if(!$inv)throw new RuntimeException('Invoice not found.');if($inv['status']!=='draft')throw new RuntimeException('Itemized charges can only be changed while an invoice is a draft.');$type=(string)($_POST['item_type']??'other');$allowed=['rental','driver','extra_mileage','late_return','damage','cleaning','fuel','delivery','other'];if(!in_array($type,$allowed,true))throw new RuntimeException('Invalid line item type.');$desc=trim((string)($_POST['description']??''));$qty=(float)($_POST['quantity']??0);$unit=(float)($_POST['unit_price']??-1);if($desc===''||$qty<=0||$unit<0)throw new RuntimeException('Description, positive quantity and non-negative unit price are required.');$pdo->beginTransaction();$line=round($qty*$unit,2);$pdo->prepare('INSERT INTO invoice_items (invoice_id,item_type,description,quantity,unit_price,line_total) VALUES (?,?,?,?,?,?)')->execute([$id,$type,$desc,$qty,$unit,$line]);$stmt=$pdo->prepare("SELECT COALESCE(SUM(line_total),0) FROM invoice_items WHERE invoice_id=? AND item_type NOT IN ('discount','tax')");$stmt->execute([$id]);$subtotal=(float)$stmt->fetchColumn();$discount=(float)$inv['discount_amount'];$tax=(float)$inv['tax_amount'];$pdo->prepare('UPDATE invoices SET subtotal=?,total_amount=? WHERE invoice_id=?')->execute([$subtotal,max(0,$subtotal-$discount+$tax),$id]);$pdo->commit();RentalOperations::logEvent($pdo,isset($user['user_id'])?(int)$user['user_id']:null,'invoice.item_added','invoice',(string)$id,'Itemized charge added to draft invoice',null,['item_type'=>$type,'description'=>$desc,'quantity'=>$qty,'unit_price'=>$unit,'line_total'=>$line,'subtotal'=>$subtotal,'total_amount'=>max(0,$subtotal-$discount+$tax)]);ro_flash('success','Item added and invoice total recalculated.');}
-  else throw new RuntimeException('Unknown invoice action.');
- }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();ro_flash('danger',$e->getMessage());}redirect('admin/invoice-view.php?id='.$id);
+$user = requireLogin();
+require_once BASE_PATH . '/includes/rental-operations-common.php';
+ro_require_permission('invoices.manage');
+$pdo = Database::connection();
+$id = (int)($_GET['id'] ?? $_POST['invoice_id'] ?? 0);
+
+if (is_post()) {
+    ro_post_guard();
+    try {
+        $action = (string)($_POST['action'] ?? '');
+        if ($action === 'issue') {
+            $dueDate = trim((string)($_POST['due_date'] ?? ''));
+            if ($dueDate !== '') {
+                $parsedDate = DateTimeImmutable::createFromFormat('!Y-m-d', $dueDate);
+                $dateErrors = DateTimeImmutable::getLastErrors();
+                if (!$parsedDate || ($dateErrors !== false && ($dateErrors['warning_count'] > 0 || $dateErrors['error_count'] > 0)) || $parsedDate->format('Y-m-d') !== $dueDate) {
+                    throw new RuntimeException('Enter a valid invoice due date.');
+                }
+            }
+
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare('SELECT status FROM invoices WHERE invoice_id = ? FOR UPDATE');
+            $stmt->execute([$id]);
+            if ($stmt->fetchColumn() !== 'draft') {
+                throw new RuntimeException('Only a draft invoice can be issued.');
+            }
+            $pdo->prepare("UPDATE invoices SET status = 'issued', issue_date = CURDATE(), due_date = ? WHERE invoice_id = ?")
+                ->execute([$dueDate ?: null, $id]);
+            RentalOperations::refreshInvoiceStatus($pdo, $id);
+            RentalOperations::logEvent(
+                $pdo,
+                (int)$user['user_id'],
+                'invoice.issued',
+                'invoice',
+                (string)$id,
+                'Invoice issued to customer',
+                ['status' => 'draft'],
+                ['status' => 'issued', 'due_date' => $dueDate ?: null]
+            );
+            $pdo->commit();
+            ro_flash('success', 'Invoice issued. You can now record payments.');
+        } elseif ($action === 'add_item') {
+            $type = (string)($_POST['item_type'] ?? 'other');
+            $allowed = ['rental','driver','extra_mileage','late_return','damage','cleaning','fuel','delivery','other'];
+            if (!in_array($type, $allowed, true)) {
+                throw new RuntimeException('Invalid line item type.');
+            }
+            $description = trim((string)($_POST['description'] ?? ''));
+            $quantity = (float)($_POST['quantity'] ?? 0);
+            $unitPrice = (float)($_POST['unit_price'] ?? -1);
+            if ($description === '' || !is_finite($quantity) || !is_finite($unitPrice) || $quantity <= 0 || $unitPrice < 0) {
+                throw new RuntimeException('Description, positive quantity and non-negative unit price are required.');
+            }
+            $lineTotal = round($quantity * $unitPrice, 2);
+            if (!is_finite($lineTotal)) {
+                throw new RuntimeException('The line item amount is too large.');
+            }
+
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare('SELECT status, discount_amount, tax_amount FROM invoices WHERE invoice_id = ? FOR UPDATE');
+            $stmt->execute([$id]);
+            $invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$invoice) {
+                throw new RuntimeException('Invoice not found.');
+            }
+            if ($invoice['status'] !== 'draft') {
+                throw new RuntimeException('Itemized charges can only be changed while an invoice is a draft.');
+            }
+            $pdo->prepare('INSERT INTO invoice_items (invoice_id, item_type, description, quantity, unit_price, line_total) VALUES (?, ?, ?, ?, ?, ?)')
+                ->execute([$id, $type, $description, $quantity, $unitPrice, $lineTotal]);
+            $stmt = $pdo->prepare("SELECT COALESCE(SUM(line_total), 0) FROM invoice_items WHERE invoice_id = ? AND item_type NOT IN ('discount', 'tax')");
+            $stmt->execute([$id]);
+            $subtotal = (float)$stmt->fetchColumn();
+            $discount = (float)$invoice['discount_amount'];
+            $tax = (float)$invoice['tax_amount'];
+            $total = max(0, $subtotal - $discount + $tax);
+            $pdo->prepare('UPDATE invoices SET subtotal = ?, total_amount = ? WHERE invoice_id = ?')
+                ->execute([$subtotal, $total, $id]);
+            RentalOperations::logEvent(
+                $pdo,
+                (int)$user['user_id'],
+                'invoice.item_added',
+                'invoice',
+                (string)$id,
+                'Itemized charge added to draft invoice',
+                null,
+                ['item_type' => $type, 'description' => $description, 'quantity' => $quantity, 'unit_price' => $unitPrice, 'line_total' => $lineTotal, 'subtotal' => $subtotal, 'total_amount' => $total]
+            );
+            $pdo->commit();
+            ro_flash('success', 'Item added and invoice total recalculated.');
+        } else {
+            throw new RuntimeException('Unknown invoice action.');
+        }
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        ro_flash('danger', $e->getMessage());
+    }
+    redirect('admin/invoice-view.php?id=' . $id);
 }
 $stmt=$pdo->prepare('SELECT i.*,c.first_name,c.last_name,c.phone,c.email,c.address_line,c.city,c.country,r.rental_number,r.status AS rental_status,rs.reservation_code,v.make,v.model,v.registration_no FROM invoices i JOIN customers c ON c.customer_id=i.customer_id LEFT JOIN rentals r ON r.rental_id=i.rental_id LEFT JOIN reservations rs ON rs.reservation_id=i.reservation_id LEFT JOIN vehicles v ON v.vehicle_id=r.vehicle_id WHERE i.invoice_id=?');$stmt->execute([$id]);$i=$stmt->fetch(PDO::FETCH_ASSOC);if(!$i){http_response_code(404);exit('Invoice not found.');}
 $balance=RentalOperations::invoiceBalance($pdo,$id);$itemsStmt=$pdo->prepare('SELECT * FROM invoice_items WHERE invoice_id=? ORDER BY invoice_item_id');$itemsStmt->execute([$id]);$items=$itemsStmt->fetchAll(PDO::FETCH_ASSOC);
