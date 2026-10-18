@@ -1,0 +1,16 @@
+<?php require __DIR__.'/includes/app.php';
+if($_SERVER['REQUEST_METHOD']==='POST'){chk();$p=$_POST;
+ if(strlen($p['password'])<8)$err='Password must be at least 8 characters.';
+ elseif(q('SELECT 1 FROM users WHERE email=?',[$p['email']])->fetch())$err='That email is already registered.';
+ else{$pdo=db();$pdo->beginTransaction();$rid=q("SELECT role_id FROM roles WHERE role_name='Customer'")->fetchColumn();
+  q('INSERT INTO users(role_id,first_name,last_name,email,phone,password_hash) VALUES(?,?,?,?,?,?)',[$rid,$p['first_name'],$p['last_name'],$p['email'],$p['phone'],password_hash($p['password'],PASSWORD_DEFAULT)]);$uid=$pdo->lastInsertId();
+  q('INSERT INTO customers(user_id,customer_code,first_name,last_name,phone,email) VALUES(?,?,?,?,?,?)',[$uid,code('CUS'),$p['first_name'],$p['last_name'],$p['phone'],$p['email']]);$pdo->commit();flash('Account created. Please sign in.');header('Location: index.php');exit;}}
+?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Register | CRMS</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"><link href="assets/style.css" rel="stylesheet"></head><body>
+<main class="auth"><div class="card"><div class="auth-brand"><i class="bi bi-car-front-fill"></i><span>CRMS · Car Rental Management</span></div><h4 class="mb-1">Create your account</h4><p class="text-muted mb-4">Get started with a customer account.</p>
+<?php if(!empty($err))echo '<div class="alert alert-danger" role="alert">'.e($err).'</div>';?>
+<form method="post" class="row g-3"><?=csrf_f()?>
+<div class="col-6"><label class="form-label" for="first_name">First name</label><input id="first_name" name="first_name" autocomplete="given-name" class="form-control" required></div><div class="col-6"><label class="form-label" for="last_name">Last name</label><input id="last_name" name="last_name" autocomplete="family-name" class="form-control" required></div>
+<div class="col-12"><label class="form-label" for="email">Email</label><input id="email" type="email" name="email" autocomplete="email" class="form-control" required></div><div class="col-12"><label class="form-label" for="phone">Phone</label><input id="phone" type="tel" name="phone" autocomplete="tel" class="form-control" required></div>
+<div class="col-12"><label class="form-label" for="password">Password (8+ characters)</label><input id="password" type="password" name="password" autocomplete="new-password" class="form-control" minlength="8" required></div>
+<div class="col-12"><button class="btn btn-primary w-100">Create account</button></div></form><p class="mt-4 mb-0 small text-center"><a href="index.php">Back to sign in</a></p></div><footer class="auth-footer">&copy; <?=date('Y')?> CRMS · Car Rental Management System</footer></main></body></html>

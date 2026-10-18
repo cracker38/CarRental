@@ -1,0 +1,15 @@
+<?php require __DIR__.'/../includes/app.php';need('Rental Officer');head('Rental operations dashboard');tiles([['reservations.php','Reservations','calendar-check'],['agreements.php','Agreements','file-earmark-text'],['rentals.php','Handover & returns','key'],['customers.php','Customers','people'],['vehicles.php','Vehicles','car-front']]);
+echo '<div class="row g-3 mb-4">';
+kpi('Pending reservations',one("SELECT COUNT(*) FROM reservations WHERE status='pending'"),'hourglass-split','reservations.php?s=pending');
+kpi('Ready for handover',one("SELECT COUNT(*) FROM reservations r JOIN rental_agreements a USING(reservation_id) WHERE r.status='confirmed' AND a.status='signed' AND NOT EXISTS(SELECT 1 FROM rentals x WHERE x.reservation_id=r.reservation_id)"),'key','rentals.php');
+kpi('Vehicles out',one("SELECT COUNT(*) FROM rentals WHERE status IN('active','overdue')"),'car-front','rentals.php');
+kpi('Overdue returns',one("SELECT COUNT(*) FROM rentals WHERE status IN('active','overdue') AND expected_return_datetime<NOW()"),'exclamation-triangle','rentals.php');
+kpi('Available vehicles',one("SELECT COUNT(*) FROM vehicles WHERE status='available'"),'check-circle');
+kpi('In maintenance',one("SELECT COUNT(*) FROM vehicles WHERE status='maintenance'"),'tools');
+kpi('Returns due today',one("SELECT COUNT(*) FROM rentals WHERE status='active' AND DATE(expected_return_datetime)=CURDATE()"),'calendar-event');
+kpi('Awaiting signature',one("SELECT COUNT(*) FROM rental_agreements WHERE status='issued'"),'pen');
+echo '</div><div class="row g-4"><div class="col-lg-6">';
+panel('Reservations to review',['Code','Customer','Vehicle','Pickup'],array_map(fn($x)=>[e($x['reservation_code']),e($x['first_name'].' '.$x['last_name']),e($x['make'].' '.$x['model']),e($x['pickup_datetime'])],q("SELECT r.*,c.first_name,c.last_name,v.make,v.model FROM reservations r JOIN customers c USING(customer_id) JOIN vehicles v USING(vehicle_id) WHERE r.status='pending' ORDER BY r.pickup_datetime LIMIT 6")->fetchAll()),'reservations.php?s=pending','No pending reservations.');
+echo '</div><div class="col-lg-6">';
+panel('Returns coming up',['Rental','Customer','Vehicle','Due','Status'],array_map(fn($x)=>[e($x['rental_number']),e($x['first_name'].' '.$x['last_name']),e($x['registration_no']),e($x['expected_return_datetime']),badge($x['status'])],q("SELECT r.*,c.first_name,c.last_name,v.registration_no FROM rentals r JOIN customers c USING(customer_id) JOIN vehicles v USING(vehicle_id) WHERE r.status IN('active','overdue') ORDER BY r.expected_return_datetime LIMIT 6")->fetchAll()),'rentals.php','No vehicles are out.');
+echo '</div></div>';foot();
