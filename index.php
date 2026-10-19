@@ -1,18 +1,11 @@
 <?php require __DIR__.'/includes/app.php';
-if($_SERVER['REQUEST_METHOD']==='POST'){chk();
-$u=q('SELECT u.*,r.role_name FROM users u JOIN roles r USING(role_id) WHERE email=?',[trim($_POST['email'])])->fetch();
- if($u&&$u['account_status']==='active'&&password_verify($_POST['password'],$u['password_hash'])){session_regenerate_id(true);$_SESSION['u']=['id'=>$u['user_id'],'name'=>$u['first_name'].' '.$u['last_name'],'role'=>$u['role_name']];q('UPDATE users SET last_login_at=NOW() WHERE user_id=?',[$u['user_id']]);audit('login','user',$u['user_id']);
- header('Location: '.dashfile());
- exit;
- }
- $err='Wrong email or password, or the account is not active.';
- }
+if($_SERVER['REQUEST_METHOD']==='POST'){chk();$u=q('SELECT u.*,r.role_name FROM users u JOIN roles r USING(role_id) WHERE email=?',[trim($_POST['email'])])->fetch();
+ if($u&&$u['account_status']==='active'&&password_verify($_POST['password'],$u['password_hash'])){session_regenerate_id(true);$_SESSION['u']=['id'=>$u['user_id'],'name'=>$u['first_name'].' '.$u['last_name'],'role'=>$u['role_name']];q('UPDATE users SET last_login_at=NOW() WHERE user_id=?',[$u['user_id']]);audit('login','user',$u['user_id']);header('Location: '.dashfile());exit;}
+ $err='Wrong email or password, or the account is not active.';}
 ?><?php $f=flash();?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in | CRMS</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"><link href="assets/style.css" rel="stylesheet"></head><body>
 <main class="auth"><div class="card"><div class="auth-brand"><i class="bi bi-car-front-fill"></i><span>CRMS · Car Rental Management</span></div><h4 class="mb-1">Welcome back</h4><p class="text-muted mb-4">Sign in to continue to your account.</p>
-<?php if($f)echo '<div class="alert alert-success" role="status">'.e($f[0]).'</div>';
-if(!empty($err))echo '<div class="alert alert-danger" role="alert">'.e($err).'</div>';
-?>
+<?php if($f)echo '<div class="alert alert-success" role="status">'.e($f[0]).'</div>';if(!empty($err))echo '<div class="alert alert-danger" role="alert">'.e($err).'</div>';?>
 <form method="post"><?=csrf_f()?><label class="form-label" for="email">Email</label><input id="email" name="email" type="email" autocomplete="username" class="form-control mb-3" required>
 <label class="form-label" for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" class="form-control mb-3" required><button class="btn btn-primary w-100">Sign in</button></form>
-<p class="mt-4 mb-0 small text-center">New customer? <a href="register.php">Create an account</a></p></div><footer class="auth-footer">&copy; <?=date('Y')?> CRMS · Car Rental Management System</footer></main></body></html>
+<p class="mt-4 mb-0 small text-center">New customer? <a href="register.php">Create an account</a></p></div><footer class="auth-footer">&copy; <?=date('Y')?> CRMS · Car Rental Management System</footer></main><script src="assets/app.js"></script></body></html>

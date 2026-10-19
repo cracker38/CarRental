@@ -25,13 +25,15 @@ if($can&&$_SERVER['REQUEST_METHOD']==='POST'){
         $pdo=db();
         try{
             $pdo->beginTransaction();
-            q('SELECT reservation_id FROM reservations WHERE reservation_id=? FOR UPDATE',[$id])->fetch();
+            $reservation=q('SELECT reservation_id,customer_id,reservation_code FROM reservations WHERE reservation_id=? FOR UPDATE',[$id])->fetch();
+            if(!$reservation)throw new RuntimeException('Reservation not found.');
             $status=$reservationActions[$action];
             q('UPDATE reservations SET status=?,confirmed_by=IF(?="confirmed",?,confirmed_by),confirmed_at=IF(?="confirmed",NOW(),confirmed_at),cancelled_at=IF(?="confirmed",NULL,NOW()),cancellation_reason=? WHERE reservation_id=?',[$status,$status,user()['id'],$status,$status,$_POST['reason']??null,$id]);
             if($action!=='confirm'){
                 q("UPDATE rental_agreements SET status='terminated' WHERE reservation_id=? AND status<>'active'",[$id]);
                 q("UPDATE invoices SET status='void' WHERE reservation_id=? AND status IN('issued','draft')",[$id]);
             }
+            notify_customer($reservation['customer_id'],'reservation_'.$status,'Rental request '.$status,'Your rental request '.$reservation['reservation_code'].' is now '.$status.'.'.($status==='confirmed'?' You can review your agreement and next steps in your account.':''),'reservation',$id);
             audit($action,'reservation',$id);
             $pdo->commit();
             flash('Reservation '.$status.'.');
@@ -62,7 +64,7 @@ head('Reservations');?>
 <td><?=e($reservation['first_name'].' '.$reservation['last_name'])?></td>
 <td><?=e($reservation['make'].' '.$reservation['model'])?><small class="d-block text-muted"><?=e($reservation['registration_no'])?></small></td>
 <td class="small text-nowrap"><?=e($reservation['pickup_datetime'])?><br><?=e($reservation['return_datetime'])?></td>
-<td class="text-nowrap"><?=money($reservation['estimated_amount']+$reservation['tax_amount']-$reservation['discount_amount'])?></td>
+<td class="text-nowrap"><?=money(max(0,$reservation['estimated_amount']-$reservation['discount_amount']))?></td>
 <td><?php if($reservation['invoice_id']):?><strong><?=e($reservation['invoice_number'])?></strong><br><?=badge($reservation['invoice_status'])?><?php else:?>Not created<?php endif;?></td>
 <td><?php if($reservation['agreement_id']):?><?=badge($reservation['agreement_status'])?> <a class="btn btn-sm btn-outline-primary" aria-label="Open agreement for <?=e($reservation['reservation_code'])?>" href="<?=BASE?>shared/agreement.php?id=<?=$reservation['agreement_id']?>"><i class="bi bi-eye"></i></a><?php else:?>—<?php endif;?></td>
 <td><?=e($reservation['payment_count'])?></td>
@@ -72,9 +74,9 @@ head('Reservations');?>
 <form method="post" class="d-inline"><?=csrf_f()?><input type="hidden" name="id" value="<?=$reservation['reservation_id']?>"><button name="act" value="create_invoice" class="btn btn-sm btn-primary">Create invoice</button></form>
 <?php endif;?>
 <?php if($can&&$reservation['status']==='pending'):?>
-<form method="post" class="d-inline"><?=csrf_f()?><input type="hidden" name="id" value="<?=$reservation['reservation_id']?>"><button name="act" value="confirm" class="btn btn-sm btn-success">Confirm</button><button name="act" value="reject" class="btn btn-sm btn-outline-danger">Reject</button></form>
+<form method="post" class="d-inline"><?=csrf_f()?><input type="hidden" name="id" value="<?=$reservation['reservation_id']?>"><button name="act" value="confirm" class="btn btn-sm btn-success">Confirm</button><button name="act" value="reject" class="btn btn-sm btn-outline-danger" data-confirm="Reject reservation <?=e($reservation['reservation_code'])?>?">Reject</button></form>
 <?php elseif($can&&$reservation['status']==='confirmed'&&!q('SELECT 1 FROM rentals WHERE reservation_id=?',[$reservation['reservation_id']])->fetch()):?>
-<form method="post" class="d-inline"><?=csrf_f()?><input type="hidden" name="id" value="<?=$reservation['reservation_id']?>"><button name="act" value="cancel" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Cancel this reservation?')">Cancel</button></form>
+<form method="post" class="d-inline" data-confirm="Cancel this reservation?"><?=csrf_f()?><input type="hidden" name="id" value="<?=$reservation['reservation_id']?>"><button name="act" value="cancel" class="btn btn-sm btn-outline-secondary">Cancel</button></form>
 <?php endif;?>
 </td></tr>
 <?php endforeach;?>
